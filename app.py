@@ -15,6 +15,7 @@ from flask import (
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
+from sqlalchemy import inspect
 
 # ---------------------------------------------------------
 # CONFIGURACIÓN BÁSICA
@@ -70,6 +71,10 @@ class Sale(db.Model):
     profit = db.Column(db.Float, default=0.0)
     comment = db.Column(db.String(255))
 
+    # Usuario del sistema que registró la venta
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    user = db.relationship("User", backref="sales", lazy=True)
+
 
 class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -99,11 +104,21 @@ def require_login():
 
 
 # ---------------------------------------------------------
-# INICIALIZACIÓN DE LA BD Y USUARIO ADMIN
+# INICIALIZACIÓN DE LA BD, COLUMNA user_id EN SALE Y USUARIO ADMIN
 # ---------------------------------------------------------
 
 with app.app_context():
     db.create_all()
+
+    # Asegurar que la tabla sale tenga la columna user_id (para instalaciones anteriores)
+    inspector = inspect(db.engine)
+    cols = [col["name"] for col in inspector.get_columns("sale")]
+    if "user_id" not in cols:
+        try:
+            db.session.execute("ALTER TABLE sale ADD COLUMN user_id INTEGER")
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
     # Crear o actualizar usuario admin usando variables de entorno
     admin_username = os.environ.get("ADMIN_USER", "admin")
@@ -180,12 +195,11 @@ def usuarios():
     if not session.get("is_admin"):
         return redirect(url_for("ventas"))
 
-    # Permite mostrar mensajes que vengan por URL (para delete, por ejemplo)
+    # Mensajes desde URL (delete) + POST (create)
     error = request.args.get("error")
     success = request.args.get("success")
 
     if request.method == "POST":
-        # Creación de usuario
         form_error = None
         form_success = None
 
@@ -209,7 +223,6 @@ def usuarios():
                 db.session.commit()
                 form_success = "Usuario creado correctamente."
 
-        # Si hay mensajes del POST, tienen prioridad sobre los de la URL
         if form_error:
             error = form_error
         if form_success:
@@ -235,7 +248,6 @@ def delete_user(user_id):
     current_user_id = session.get("user_id")
     user = User.query.get_or_404(user_id)
 
-    # Evitar que el admin se elimine a sí mismo
     if user.id == current_user_id:
         return redirect(
             url_for(
@@ -389,7 +401,6 @@ def delete_product(product_id):
     if not session.get("user_id"):
         return redirect(url_for("login"))
     if not session.get("is_admin"):
-        # Solo admin puede tocar el catálogo
         return redirect(url_for("productos"))
 
     product = Product.query.get_or_404(product_id)
@@ -406,7 +417,6 @@ def delete_product(product_id):
 def calculadora():
     if not session.get("user_id"):
         return redirect(url_for("login"))
-    # Siempre usamos la pantalla fusionada de productos + calculadora
     return redirect(url_for("productos"))
 
 
@@ -477,6 +487,7 @@ def ventas():
                 total=total,
                 profit=profit,
                 comment=comment,
+                user_id=session.get("user_id"),
             )
             db.session.add(sale)
             db.session.commit()
@@ -484,14 +495,24 @@ def ventas():
         except Exception as e:
             error = f"Error al guardar la venta: {e}"
 
-    # Filtros (GET y POST comparten la misma vista final)
+    # Filtros (GET)
     filter_name = request.args.get("filter_name") or ""
     filter_status = request.args.get("filter_status") or ""
     date_from = request.args.get("date_from") or ""
     date_to = request.args.get("date_to") or ""
+    filter_user_id = request.args.get("filter_user_id") or ""
 
     query = Sale.query
     query = apply_sales_filters(query, filter_name, filter_status, date_from, date_to)
+
+    # Filtro por usuario que registró la venta
+    if filter_user_id:
+        try:
+            user_filter_id = int(filter_user_id)
+            query = query.filter(Sale.user_id == user_filter_id)
+        except ValueError:
+            filter_user_id = ""
+
     sales = query.order_by(Sale.date.desc(), Sale.id.desc()).all()
 
     # Totales
@@ -502,6 +523,7 @@ def ventas():
     total_pendiente = sum(float(s.total or 0) for s in sales if s.status == "Pendiente")
 
     products = Product.query.order_by(Product.name).all()
+    users = User.query.order_by(User.username).all()
 
     return render_template(
         "ventas.html",
@@ -509,10 +531,12 @@ def ventas():
         success=success,
         sales=sales,
         products=products,
+        users=users,
         filter_name=filter_name,
         filter_status=filter_status,
         date_from=date_from,
         date_to=date_to,
+        filter_user_id=filter_user_id,
         total_ventas=total_ventas,
         total_monto=total_monto,
         total_ganancia=total_ganancia,
@@ -541,9 +565,18 @@ def ventas_export():
     filter_status = request.args.get("filter_status") or ""
     date_from = request.args.get("date_from") or ""
     date_to = request.args.get("date_to") or ""
+    filter_user_id = request.args.get("filter_user_id") or ""
 
     query = Sale.query
     query = apply_sales_filters(query, filter_name, filter_status, date_from, date_to)
+
+    if filter_user_id:
+        try:
+            user_filter_id = int(filter_user_id)
+            query = query.filter(Sale.user_id == user_filter_id)
+        except ValueError:
+            pass
+
     sales = query.order_by(Sale.date.asc(), Sale.id.asc()).all()
 
     rows = []
@@ -559,6 +592,7 @@ def ventas_export():
             "Total": s.total,
             "Ganancia": s.profit,
             "Comentario": s.comment or "",
+            "Usuario": s.user.username if getattr(s, "user", None) else "",
         })
 
     df = pd.DataFrame(rows)
@@ -717,7 +751,7 @@ def flujo_export():
 
 
 # ---------------------------------------------------------
-# DASHBOARD (TOP PRODUCTOS Y GANANCIAS SEMANALES, CON FILTROS Y PRESETS)
+# DASHBOARD
 # ---------------------------------------------------------
 
 @app.route("/dashboard")
@@ -751,7 +785,6 @@ def dashboard():
             d_to = today
             d_from = today.replace(month=1, day=1)
 
-        # Actualizamos los strings para mostrarlos en el formulario
         date_from = d_from.isoformat() if d_from else ""
         date_to = d_to.isoformat() if d_to else ""
     else:
@@ -791,6 +824,16 @@ def dashboard():
     week_labels = [k for k, _ in weeks_sorted]
     week_values = [round(v, 2) for _, v in weeks_sorted]
 
+    # Ganancia por usuario del sistema
+    profit_by_user = defaultdict(float)
+    for s in sales:
+        if s.user:
+            profit_by_user[s.user.username] += float(s.profit or 0)
+
+    user_items = sorted(profit_by_user.items(), key=lambda x: x[1], reverse=True)
+    user_labels = [u for u, _ in user_items]
+    user_values = [round(v, 2) for _, v in user_items]
+
     total_ganancia = sum(float(s.profit or 0) for s in sales)
 
     return render_template(
@@ -799,6 +842,8 @@ def dashboard():
         top_values=top_values,
         week_labels=week_labels,
         week_values=week_values,
+        user_labels=user_labels,
+        user_values=user_values,
         total_ganancia=total_ganancia,
         date_from=date_from,
         date_to=date_to,
