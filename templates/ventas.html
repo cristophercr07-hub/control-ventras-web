@@ -1,0 +1,464 @@
+{% extends "base.html" %}
+
+{% block title %}Ventas - Control de Ventas{% endblock %}
+
+{% block content %}
+
+<!-- FORMULARIO DE NUEVA VENTA -->
+<div class="row">
+    <div class="col-12">
+        <div class="card p-4 mb-4">
+            <h2 class="mb-3 text-accent">Registro de Ventas</h2>
+
+            {% if error %}
+                <div class="alert alert-danger py-2">
+                    {{ error }}
+                </div>
+            {% endif %}
+            {% if success %}
+                <div class="alert alert-success py-2">
+                    {{ success }}
+                </div>
+            {% endif %}
+
+            <form method="post" action="{{ url_for('ventas') }}">
+                <div class="row g-3">
+                    <!-- Fila 1: Fecha, Nombre, Producto, Estado -->
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Fecha</label>
+                        <input
+                            type="date"
+                            name="date"
+                            class="form-control text-center"
+                            required
+                            data-autotoday="1"
+                        >
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Nombre / Cliente</label>
+                        <input type="text" name="name" class="form-control text-center" required>
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Producto</label>
+                        <select name="product_select" id="product_select" class="form-select text-center mb-2">
+                            <option value="">-- Seleccionar --</option>
+                            {% for p in products %}
+                                <option
+                                    value="{{ p.name }}"
+                                    data-cost="{{ "%.2f"|format(p.cost) }}"
+                                    data-price="{{ "%.2f"|format(p.price) }}"
+                                >
+                                    {{ p.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <input
+                            type="text"
+                            name="product"
+                            id="product_input"
+                            class="form-control text-center"
+                            placeholder="O escribe uno nuevo"
+                        >
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Estado</label>
+                        <select name="status" class="form-select text-center">
+                            <option value="Pagado">Pagado</option>
+                            <option value="Pendiente">Pendiente</option>
+                        </select>
+                    </div>
+
+                    <!-- Fila 2: Costos, Precio, Cantidad, Comentario -->
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Costo por unidad</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="cost_per_unit"
+                            id="cost_per_unit"
+                            class="form-control text-end"
+                            value="0"
+                        >
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Precio por unidad</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="price_per_unit"
+                            id="price_per_unit"
+                            class="form-control text-end"
+                            value="0"
+                        >
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Cantidad</label>
+                        <input
+                            type="number"
+                            name="quantity"
+                            class="form-control text-end"
+                            value="1"
+                            min="1"
+                        >
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Comentario</label>
+                        <input type="text" name="comment" class="form-control">
+                    </div>
+                </div>
+
+                <div class="mt-3 text-center">
+                    <button type="submit" class="btn btn-primary px-4 w-100 w-md-auto">
+                        <i class="bi bi-save me-1"></i> Guardar venta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- FILTROS -->
+<div class="row">
+    <div class="col-12">
+        <div class="card p-3 mb-4">
+            <h2 class="mb-3 text-accent">Filtros</h2>
+            <form method="get" action="{{ url_for('ventas') }}">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Nombre / Cliente</label>
+                        <input
+                            type="text"
+                            name="filter_name"
+                            class="form-control text-center"
+                            value="{{ filter_name or '' }}"
+                        >
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Estado</label>
+                        <select name="filter_status" class="form-select text-center">
+                            <option value="" {% if not filter_status %}selected{% endif %}>Todos</option>
+                            <option value="Pagado" {% if filter_status == 'Pagado' %}selected{% endif %}>Pagado</option>
+                            <option value="Pendiente" {% if filter_status == 'Pendiente' %}selected{% endif %}>Pendiente</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 col-6">
+                        <label class="form-label text-secondary-custom">Desde</label>
+                        <input
+                            type="date"
+                            name="date_from"
+                            class="form-control text-center"
+                            value="{{ date_from or '' }}"
+                        >
+                    </div>
+                    <div class="col-md-2 col-6">
+                        <label class="form-label text-secondary-custom">Hasta</label>
+                        <input
+                            type="date"
+                            name="date_to"
+                            class="form-control text-center"
+                            value="{{ date_to or '' }}"
+                        >
+                    </div>
+                    <div class="col-md-2 col-12 text-center">
+                        <button type="submit" class="btn btn-primary w-100 mb-2">
+                            <i class="bi bi-funnel me-1"></i> Aplicar filtros
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Botón de exportar a Excel (usa los mismos filtros) -->
+            <div class="mt-3 text-end">
+                <a
+                    class="btn btn-outline-light w-100 w-md-auto"
+                    href="{{ url_for('ventas_export',
+                                     filter_name=filter_name,
+                                     filter_status=filter_status,
+                                     date_from=date_from,
+                                     date_to=date_to) }}"
+                >
+                    <i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TABLA Y TARJETAS DE VENTAS -->
+<div class="row">
+    <div class="col-12">
+        <div class="card p-4 mb-4">
+            {% if sales and sales|length > 0 %}
+
+                <!-- Tabla (escritorio / tablet) -->
+                <h2 class="mb-3 text-accent d-none d-md-block">Listado de ventas (tabla)</h2>
+                <div class="table-responsive d-none d-md-block">
+                    <table class="table table-dark table-striped table-sm align-middle">
+                        <thead>
+                            <tr class="text-center">
+                                <th>Fecha</th>
+                                <th>Nombre</th>
+                                <th>Producto</th>
+                                <th>Estado</th>
+                                <th>Costo u.</th>
+                                <th>Precio u.</th>
+                                <th>Cant.</th>
+                                <th>Total</th>
+                                <th>Ganancia</th>
+                                <th>Comentario</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in sales %}
+                                <tr>
+                                    <td class="text-center">{{ s.date }}</td>
+                                    <td class="text-center">{{ s.name }}</td>
+                                    <td class="text-center">{{ s.product }}</td>
+                                    <td class="text-center">{{ s.status }}</td>
+                                    <td class="text-end text-accent">
+                                        {{ "%.2f"|format(s.cost_per_unit) }}
+                                    </td>
+                                    <td class="text-end text-accent">
+                                        {{ "%.2f"|format(s.price_per_unit) }}
+                                    </td>
+                                    <td class="text-end text-accent">
+                                        {{ s.quantity }}
+                                    </td>
+                                    <td class="text-end text-accent">
+                                        {{ "%.2f"|format(s.total) }}
+                                    </td>
+                                    <td class="text-end text-accent">
+                                        {{ "%.2f"|format(s.profit) }}
+                                    </td>
+                                    <td class="text-center">{{ s.comment }}</td>
+                                    <td class="text-center">
+                                        <form method="post"
+                                              action="{{ url_for('delete_sale', sale_id=s.id) }}"
+                                              class="d-inline">
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-outline-danger"
+                                                    onclick="return doubleConfirm('¿Seguro que deseas eliminar esta venta?', 'Esta acción no se puede deshacer. ¿Confirmas?');">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Vista tipo tarjeta para móvil -->
+                <div class="d-block d-md-none">
+                    <h2 class="mb-3 text-accent">Listado de ventas</h2>
+                    {% for s in sales %}
+                        <div class="border rounded p-2 mb-2">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-secondary-custom">{{ s.date }}</span>
+                                <span class="badge"
+                                      style="background-color: {% if s.status == 'Pagado' %}#198754{% else %}#ffc107{% endif %};">
+                                    {{ s.status }}
+                                </span>
+                            </div>
+                            <div class="mt-1">
+                                <strong>{{ s.name }}</strong> – {{ s.product }}
+                            </div>
+                            <div class="mt-1 text-secondary-custom">
+                                Cant: <span class="text-accent">{{ s.quantity }}</span> |
+                                Total: <span class="text-accent">{{ "%.2f"|format(s.total) }} ₡</span>
+                            </div>
+                            <div class="mt-1 text-secondary-custom">
+                                Costo u.: <span class="text-accent">{{ "%.2f"|format(s.cost_per_unit) }}</span> |
+                                Precio u.: <span class="text-accent">{{ "%.2f"|format(s.price_per_unit) }}</span>
+                            </div>
+                            <div class="mt-1 text-secondary-custom">
+                                Ganancia: <span class="text-accent">{{ "%.2f"|format(s.profit) }} ₡</span>
+                            </div>
+                            {% if s.comment %}
+                                <div class="mt-1 text-secondary-custom">
+                                    Nota: {{ s.comment }}
+                                </div>
+                            {% endif %}
+                            <div class="mt-2 text-end">
+                                <form method="post"
+                                      action="{{ url_for('delete_sale', sale_id=s.id) }}"
+                                      class="d-inline">
+                                    <button type="submit"
+                                            class="btn btn-sm btn-outline-danger"
+                                            onclick="return doubleConfirm('¿Eliminar esta venta?', 'Esta acción no se puede deshacer. ¿Confirmas?');">
+                                        <i class="bi bi-trash"></i> Eliminar
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+            {% else %}
+                <p class="text-secondary-custom text-center mb-0">
+                    No hay ventas que coincidan con los filtros actuales.
+                </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- RESUMEN + GRÁFICOS -->
+<div class="row">
+    <div class="col-12">
+        <div class="card p-4">
+            <h2 class="mb-3 text-accent">Resumen de ventas (filtradas)</h2>
+            <div class="row text-center mb-3">
+                <div class="col-md-3 col-6 mb-2">
+                    <div class="text-secondary-custom">Total de ventas</div>
+                    <div class="text-accent">{{ total_ventas }}</div>
+                </div>
+                <div class="col-md-3 col-6 mb-2">
+                    <div class="text-secondary-custom">Monto total (₡)</div>
+                    <div class="text-accent">{{ "%.2f"|format(total_monto) }}</div>
+                </div>
+                <div class="col-md-3 col-6 mb-2">
+                    <div class="text-secondary-custom">Ganancia total (₡)</div>
+                    <div class="text-accent">{{ "%.2f"|format(total_ganancia) }}</div>
+                </div>
+                <div class="col-md-3 col-6 mb-2">
+                    <div class="text-secondary-custom">Pagado / Pendiente (₡)</div>
+                    <div class="text-accent">
+                        {{ "%.2f"|format(total_pagado) }} / {{ "%.2f"|format(total_pendiente) }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráficos -->
+            <div class="row">
+                <div class="col-md-6 col-12 mb-3">
+                    <h5 class="text-accent text-center mb-2">Monto vs Ganancia</h5>
+                    <canvas id="ventasMontoGananciaChart" height="140"></canvas>
+                </div>
+                <div class="col-md-6 col-12 mb-3">
+                    <h5 class="text-accent text-center mb-2">Distribución Pagado / Pendiente</h5>
+                    <canvas id="ventasEstadoChart" height="140"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const select = document.getElementById("product_select");
+    const costInput = document.getElementById("cost_per_unit");
+    const priceInput = document.getElementById("price_per_unit");
+    const productInput = document.getElementById("product_input");
+
+    // Autollenado de costo/precio/nombre al seleccionar producto
+    if (select && costInput && priceInput) {
+        select.addEventListener("change", function() {
+            const opt = select.options[select.selectedIndex];
+            const cost = opt.getAttribute("data-cost");
+            const price = opt.getAttribute("data-price");
+            const name = opt.value;
+
+            if (cost) {
+                costInput.value = cost;
+            }
+            if (price) {
+                priceInput.value = price;
+            }
+            if (productInput && name) {
+                productInput.value = name;
+            }
+        });
+    }
+
+    // ---------- Gráfico Monto vs Ganancia (BARRAS) ----------
+    const ctxMG = document.getElementById('ventasMontoGananciaChart');
+    if (ctxMG) {
+        const totalMonto = {{ total_monto or 0 }};
+        const totalGanancia = {{ total_ganancia or 0 }};
+
+        new Chart(ctxMG, {
+            type: 'bar',
+            data: {
+                labels: ['Monto total', 'Ganancia total'],
+                datasets: [{
+                    label: '₡',
+                    data: [totalMonto, totalGanancia],
+                    backgroundColor: [
+                        'rgba(0, 229, 229, 0.5)',
+                        'rgba(0, 140, 255, 0.5)'
+                    ],
+                    borderColor: [
+                        '#00e5e5',
+                        '#008cff'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#ffffff'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#ffffff' },
+                        grid: { color: '#333333' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: '#ffffff' },
+                        grid: { color: '#333333' }
+                    }
+                }
+            }
+        });
+    }
+
+    // ---------- Gráfico Pagado vs Pendiente (PASTEL) ----------
+    const ctxEstado = document.getElementById('ventasEstadoChart');
+    if (ctxEstado) {
+        const totalPagado = {{ total_pagado or 0 }};
+        const totalPendiente = {{ total_pendiente or 0 }};
+
+        new Chart(ctxEstado, {
+            type: 'doughnut',
+            data: {
+                labels: ['Pagado', 'Pendiente'],
+                datasets: [{
+                    data: [totalPagado, totalPendiente],
+                    backgroundColor: [
+                        'rgba(25, 135, 84, 0.7)',   // verde
+                        'rgba(255, 193, 7, 0.7)'    // amarillo
+                    ],
+                    borderColor: [
+                        '#198754',
+                        '#ffc107'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#ffffff'
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
