@@ -1,4 +1,4 @@
-<!DOCTYPE html><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -225,7 +225,7 @@
         <nav class="navbar navbar-expand-lg navbar-dark">
             <div class="container-fluid">
                 <!-- Al hacer clic aquí te lleva al Dashboard -->
-                <a class="navbar-brand fw-bold fw-narrow" href="{{ url_for('dashboard') }}">
+                <a class="navbar-brand fw-bold fw-narrow spa-link" href="{{ url_for('dashboard') }}">
                     Control de Ventas
                 </a>
 
@@ -238,32 +238,32 @@
                 <div class="collapse navbar-collapse" id="mainNavbar">
                     <ul class="navbar-nav me-auto mb-2 mb-lg-0 fw-narrow">
                         <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'ventas' %}active{% endif %}"
+                            <a class="nav-link spa-link {% if request.endpoint == 'ventas' %}active{% endif %}"
                                href="{{ url_for('ventas') }}">
                                 Ventas
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'productos' %}active{% endif %}"
+                            <a class="nav-link spa-link {% if request.endpoint == 'productos' %}active{% endif %}"
                                href="{{ url_for('productos') }}">
-                                Productos / Calculadora
+                                Productos
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'flujo' %}active{% endif %}"
+                            <a class="nav-link spa-link {% if request.endpoint == 'flujo' %}active{% endif %}"
                                href="{{ url_for('flujo') }}">
                                 Control de Flujo
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
+                            <a class="nav-link spa-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
                                href="{{ url_for('dashboard') }}">
                                 Dashboard
                             </a>
                         </li>
                         {% if session.get('is_admin') %}
                         <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'usuarios' %}active{% endif %}"
+                            <a class="nav-link spa-link {% if request.endpoint == 'usuarios' %}active{% endif %}"
                                href="{{ url_for('usuarios') }}">
                                 Usuarios
                             </a>
@@ -277,6 +277,7 @@
                                 {{ session.get('user') }}
                                 {% if session.get('is_admin') %}(admin){% endif %}
                             </span>
+                            <!-- Logout normal (no SPA) -->
                             <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm fw-narrow">
                                 <i class="bi bi-box-arrow-right me-1"></i> Salir
                             </a>
@@ -288,7 +289,7 @@
 
         <!-- CONTENIDO PRINCIPAL -->
         <main class="flex-grow-1">
-            <div class="container py-4">
+            <div class="container py-4" id="app-content">
                 {% block content %}
                 {% endblock %}
             </div>
@@ -354,8 +355,67 @@
             setInterval(draw, 70);
         })();
     </script>
+
+    <!-- Navegación tipo SPA para mantener Matrix continuo -->
+    <script>
+        (function() {
+            const content = document.getElementById('app-content');
+
+            function loadPage(url, pushState = true) {
+                if (!content) {
+                    window.location.href = url;
+                    return;
+                }
+                fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newContent = doc.getElementById('app-content');
+                    const newTitle = doc.querySelector('title');
+
+                    if (newContent) {
+                        content.innerHTML = newContent.innerHTML;
+                        if (newTitle) {
+                            document.title = newTitle.textContent;
+                        }
+                        if (pushState) {
+                            history.pushState({ url: url }, '', url);
+                        }
+                        // No tocamos el canvas, así Matrix sigue corriendo
+                    } else {
+                        // Si no encontramos el contenedor, hacemos fallback a navegación normal
+                        window.location.href = url;
+                    }
+                })
+                .catch(() => {
+                    window.location.href = url;
+                });
+            }
+
+            // Delegado para links con clase .spa-link
+            document.addEventListener('click', function(e) {
+                const link = e.target.closest('a.spa-link');
+                if (!link) return;
+
+                const href = link.getAttribute('href');
+                if (!href || href.startsWith('http')) return;
+
+                e.preventDefault();
+                loadPage(href, true);
+            });
+
+            // Soporte para botón atrás/adelante del navegador
+            window.addEventListener('popstate', function(e) {
+                const url = (e.state && e.state.url) ? e.state.url : window.location.pathname;
+                loadPage(url, false);
+            });
+        })();
+    </script>
     {% endblock %}
 </body>
 </html>
-
-
