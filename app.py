@@ -1,5 +1,6 @@
 import datetime
 import io
+import os
 from collections import defaultdict
 
 from flask import (
@@ -20,9 +21,16 @@ import pandas as pd
 # ---------------------------------------------------------
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "cambia-esta-clave-a-una-muy-segura"
+
+# SECRET_KEY desde variable de entorno (más seguro en producción)
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-key-change-me")
+
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///ventas.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# Cookies de sesión más seguras
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 db = SQLAlchemy(app)
 
@@ -96,13 +104,35 @@ def require_login():
 
 with app.app_context():
     db.create_all()
-    # Crea usuario admin por defecto si no existe
-    if not User.query.filter_by(username="admin").first():
-        admin = User(
-            username="admin",
-            password_hash=generate_password_hash("admin"),
-            is_admin=True,
-        )
+
+    # Crear o actualizar usuario admin usando variables de entorno
+    admin_username = os.environ.get("ADMIN_USER", "admin")
+    admin_password = os.environ.get("ADMIN_PASS")  # si no está, se usa fallback (solo para desarrollo)
+
+    admin_user = User.query.filter_by(username=admin_username).first()
+
+    if admin_user:
+        # Si hay password en entorno, sincronizamos la contraseña con esa
+        if admin_password:
+            admin_user.password_hash = generate_password_hash(admin_password)
+            admin_user.is_admin = True
+            db.session.commit()
+    else:
+        # No existe ese usuario admin, lo creamos
+        if admin_password:
+            # Producción: credenciales fuertes vía entorno
+            admin = User(
+                username=admin_username,
+                password_hash=generate_password_hash(admin_password),
+                is_admin=True,
+            )
+        else:
+            # Fallback para desarrollo local: admin / admin
+            admin = User(
+                username="admin",
+                password_hash=generate_password_hash("admin"),
+                is_admin=True,
+            )
         db.session.add(admin)
         db.session.commit()
 
@@ -150,20 +180,25 @@ def usuarios():
     if not session.get("is_admin"):
         return redirect(url_for("ventas"))
 
-    error = None
-    success = None
+    # Permite mostrar mensajes que vengan por URL (para delete, por ejemplo)
+    error = request.args.get("error")
+    success = request.args.get("success")
 
     if request.method == "POST":
+        # Creación de usuario
+        form_error = None
+        form_success = None
+
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
         is_admin = bool(request.form.get("is_admin"))
 
         if not username or not password:
-            error = "Usuario y contraseña son obligatorios."
+            form_error = "Usuario y contraseña son obligatorios."
         else:
             existing = User.query.filter_by(username=username).first()
             if existing:
-                error = "Ya existe un usuario con ese nombre."
+                form_error = "Ya existe un usuario con ese nombre."
             else:
                 new_user = User(
                     username=username,
@@ -172,7 +207,13 @@ def usuarios():
                 )
                 db.session.add(new_user)
                 db.session.commit()
-                success = "Usuario creado correctamente."
+                form_success = "Usuario creado correctamente."
+
+        # Si hay mensajes del POST, tienen prioridad sobre los de la URL
+        if form_error:
+            error = form_error
+        if form_success:
+            success = form_success
 
     users = User.query.order_by(User.username).all()
     return render_template(
@@ -181,6 +222,31 @@ def usuarios():
         error=error,
         success=success,
     )
+
+
+@app.post("/usuarios/<int:user_id>/delete")
+def delete_user(user_id):
+    """Eliminar usuario (solo admin). El admin no puede eliminarse a sí mismo."""
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    if not session.get("is_admin"):
+        return redirect(url_for("ventas"))
+
+    current_user_id = session.get("user_id")
+    user = User.query.get_or_404(user_id)
+
+    # Evitar que el admin se elimine a sí mismo
+    if user.id == current_user_id:
+        return redirect(
+            url_for(
+                "usuarios",
+                error="No puedes eliminar tu propio usuario mientras estás conectado."
+            )
+        )
+
+    db.session.delete(user)
+    db.session.commit()
+    return redirect(url_for("usuarios", success="Usuario eliminado correctamente."))
 
 
 # ---------------------------------------------------------
