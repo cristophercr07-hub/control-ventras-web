@@ -44,7 +44,7 @@
                 </form>
             </div>
 
-            <!-- ALERTAS INTELIGENTES -->
+            <!-- ALERTAS -->
             <div class="mb-3">
                 <h5 class="text-accent mb-2">Alertas inteligentes</h5>
                 {% if alerts is defined and alerts and alerts|length > 0 %}
@@ -58,7 +58,7 @@
                         {% endif %}
                         <div class="alert {{ alert_class }} py-2 px-3 mb-2">
                             <strong>{{ a.title }}:</strong>
-                            <span>{{ a.message }}</span>
+                            <span>{{ a.message|safe }}</span>
                         </div>
                     {% endfor %}
                 {% else %}
@@ -69,29 +69,29 @@
                 {% endif %}
             </div>
 
-            <!-- TARJETAS DE MÉTRICAS PRINCIPALES -->
+            <!-- TARJETAS MÉTRICAS -->
             <div class="row g-3">
                 <div class="col-6 col-md-3">
                     <div class="card h-100 p-3 bg-dark border-secondary">
                         <p class="text-secondary-custom mb-1">Ganancia total (periodo)</p>
-                        <h4 class="mb-0 text-accent">
-                            ₡{{ "%.2f"|format(total_ganancia or 0) }}
+                        <h4 class="mb-0 text-accent fw-narrow">
+                            ₡{{ total_ganancia|format_num }}
                         </h4>
                     </div>
                 </div>
                 <div class="col-6 col-md-3">
                     <div class="card h-100 p-3 bg-dark border-secondary">
                         <p class="text-secondary-custom mb-1">Monto vendido (periodo)</p>
-                        <h4 class="mb-0 text-accent">
-                            ₡{{ "%.2f"|format(total_monto_period or 0) }}
+                        <h4 class="mb-0 text-accent fw-narrow">
+                            ₡{{ total_monto_period|format_num }}
                         </h4>
                     </div>
                 </div>
                 <div class="col-6 col-md-3">
                     <div class="card h-100 p-3 bg-dark border-secondary">
                         <p class="text-secondary-custom mb-1">Ticket promedio</p>
-                        <h4 class="mb-0 text-accent">
-                            ₡{{ "%.2f"|format(avg_ticket or 0) }}
+                        <h4 class="mb-0 text-accent fw-narrow">
+                            ₡{{ avg_ticket|format_num }}
                         </h4>
                         <small class="text-secondary-custom">
                             {{ total_ventas_period or 0 }} ventas en el periodo
@@ -101,8 +101,8 @@
                 <div class="col-6 col-md-3">
                     <div class="card h-100 p-3 bg-dark border-secondary">
                         <p class="text-secondary-custom mb-1">Utilidad diaria promedio</p>
-                        <h4 class="mb-0 text-accent">
-                            ₡{{ "%.2f"|format(avg_daily_profit or 0) }}
+                        <h4 class="mb-0 text-accent fw-narrow">
+                            ₡{{ avg_daily_profit|format_num }}
                         </h4>
                     </div>
                 </div>
@@ -157,51 +157,31 @@
 {{ super() }}
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-    // Datos desde Flask (si no vienen definidos, caen en arrays vacíos)
     const topLabels = {{ top_labels | default([]) | tojson }};
     const topData   = {{ top_values | default([]) | tojson }};
-
     const weekLabels = {{ week_labels | default([]) | tojson }};
     const weekData   = {{ week_values | default([]) | tojson }};
-
     const userLabels = {{ user_labels | default([]) | tojson }};
     const userData   = {{ user_values | default([]) | tojson }};
 
-    // TOP PRODUCTOS (DOUGHNUT)
     const topCtx = document.getElementById('topProductsChart');
     if (topCtx && topLabels.length > 0) {
         new Chart(topCtx, {
             type: 'doughnut',
             data: {
                 labels: topLabels,
-                datasets: [{
-                    data: topData,
-                }]
+                datasets: [{ data: topData }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            color: '#ffffff',
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(ctx) {
-                                const value = ctx.parsed || 0;
-                                return `${ctx.label}: ₡${value.toFixed(2)}`;
-                            }
-                        }
-                    }
+                    legend: { position: 'bottom', labels: { color: '#e8f5e9' } }
                 }
             }
         });
     }
 
-    // GANANCIA POR SEMANA (BARRAS)
     const weekCtx = document.getElementById('weeklyProfitChart');
     if (weekCtx && weekLabels.length > 0) {
         new Chart(weekCtx, {
@@ -210,7 +190,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 labels: weekLabels,
                 datasets: [{
                     label: 'Ganancia por semana',
-                    data: weekData,
+                    data: weekData
                 }]
             },
             options: {
@@ -218,64 +198,38 @@ document.addEventListener("DOMContentLoaded", function() {
                 maintainAspectRatio: false,
                 scales: {
                     x: {
-                        ticks: { color: '#ffffff' },
+                        ticks: { color: '#e8f5e9' },
                         grid: { display: false }
                     },
                     y: {
-                        ticks: { color: '#ffffff' },
-                        grid: { color: 'rgba(255,255,255,0.1)' }
+                        ticks: { color: '#e8f5e9' },
+                        grid: { color: 'rgba(232,245,233,0.15)' }
                     }
                 },
                 plugins: {
-                    legend: {
-                        labels: { color: '#ffffff' }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(ctx) {
-                                const value = ctx.parsed.y || 0;
-                                return `₡${value.toFixed(2)}`;
-                            }
-                        }
-                    }
+                    legend: { labels: { color: '#e8f5e9' } }
                 }
             }
         });
     }
 
-    // GANANCIA POR USUARIO (DOUGHNUT)
     const userCtx = document.getElementById('userProfitChart');
     if (userCtx && userLabels.length > 0) {
         new Chart(userCtx, {
             type: 'doughnut',
             data: {
                 labels: userLabels,
-                datasets: [{
-                    data: userData,
-                }]
+                datasets: [{ data: userData }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            color: '#ffffff',
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(ctx) {
-                                const value = ctx.parsed || 0;
-                                return `${ctx.label}: ₡${value.toFixed(2)}`;
-                            }
-                        }
-                    }
+                    legend: { position: 'bottom', labels: { color: '#e8f5e9' } }
                 }
             }
         });
     }
 });
 </script>
-{% endblock %}
+{% endblock %}
