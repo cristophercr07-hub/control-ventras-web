@@ -525,6 +525,12 @@ def ventas():
     products = Product.query.order_by(Product.name).all()
     users = User.query.order_by(User.username).all()
 
+    # Diccionario para JS { nombre: {cost, price} }
+    product_mapping = {
+        p.name: {"cost": float(p.cost or 0), "price": float(p.price or 0)}
+        for p in products
+    }
+
     return render_template(
         "ventas.html",
         error=error,
@@ -542,6 +548,7 @@ def ventas():
         total_ganancia=total_ganancia,
         total_pagado=total_pagado,
         total_pendiente=total_pendiente,
+        product_mapping=product_mapping,
     )
 
 
