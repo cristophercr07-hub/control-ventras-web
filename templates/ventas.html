@@ -302,36 +302,9 @@
     </div>
 </div>
 
-{% endblock %}
-
-{% block extra_scripts %}
-{{ super() }}
-<script>
-// Mapeo de productos -> costo y precio (inyectado desde el backend)
-const productMapping = {{ product_mapping | tojson }};
-
-document.addEventListener("DOMContentLoaded", function() {
-    const select = document.getElementById("product_select");
-    const productInput = document.getElementById("product_input");
-    const costInput = document.getElementById("cost_per_unit");
-    const priceInput = document.getElementById("price_per_unit");
-
-    if (select) {
-        select.addEventListener("change", function() {
-            const name = this.value;
-            if (name && productMapping && productMapping[name]) {
-                if (productInput) productInput.value = name;
-                if (costInput)  costInput.value  = productMapping[name].cost;
-                if (priceInput) priceInput.value = productMapping[name].price;
-            }
-        });
-    }
-});
-
-function confirmDeleteSale(id) {
-    const first = confirm("¿Seguro que deseas eliminar la venta #" + id + "?");
-    if (!first) return false;
-    return confirm("Esta acción no se puede deshacer. Confirma nuevamente para eliminar.");
-}
+<!-- JSON con el mapeo de productos para JS global (en base.html) -->
+<script type="application/json" id="product_mapping_data">
+    {{ product_mapping | tojson }}
 </script>
+
 {% endblock %}
