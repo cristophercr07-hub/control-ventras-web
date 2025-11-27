@@ -1,976 +1,846 @@
-import datetime
-import io
-import os
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog
+from dataclasses import dataclass
+from datetime import datetime, date
 from collections import defaultdict
+import csv
+import os
+import sys
 
-from flask import (
-    Flask,
-    render_template,
-    request,
-    redirect,
-    url_for,
-    session,
-    send_file,
-)
-from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
-import pandas as pd
-from sqlalchemy import inspect
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 
-# ---------------------------------------------------------
-# CONFIGURACIÓN BÁSICA
-# ---------------------------------------------------------
+# ================== CONFIGURACIÓN TEMA OSCURO ==================
 
-app = Flask(__name__)
+BACKGROUND = "#060814"
+BACKGROUND_ELEVATED = "#101426"
+CARD = "#181c34"
+TEXT_PRIMARY = "#ffffff"
+TEXT_SECONDARY = "#aaaaaa"
+ACCENT = "#8c6eff"
 
-# RUTA ABSOLUTA PARA LA BD (FUNCIONA EN LOCAL Y EN RENDER)
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-db_path = os.path.join(BASE_DIR, "ventas.db")
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+TITLE_FONT = ("Arial Narrow", 14)
+DATA_FONT = ("Arial Narrow", 12)
 
-# SECRET_KEY desde variable de entorno (más seguro en producción)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-key-change-me")
+# Lista fija de productos
+PRODUCTS = [
+    "Flor Nacional",
+    "Flor Gringa",
+    "Miel",
+    "Preroll",
+    "Gomitas",
+    "Snowballs",
+    "Empanizador",
+]
 
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# Valores por defecto del usuario (primer uso)
+DEFAULT_USERNAME = "admin"
+DEFAULT_PASSWORD = "1234"
 
-# Cookies de sesión más seguras
-app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+# Carpeta base (soporta .py y .exe)
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-db = SQLAlchemy(app)
-
-# Margen mínimo de utilidad para la calculadora (7 %)
-MIN_MARGIN_PERCENT = 7.0
-
-
-# ---------------------------------------------------------
-# MODELOS
-# ---------------------------------------------------------
-
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
-    is_admin = db.Column(db.Boolean, default=False)
+DATA_FILE = os.path.join(BASE_DIR, "ventas_data.csv")
+CREDENTIALS_FILE = os.path.join(BASE_DIR, "credentials.csv")
 
 
-class Product(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), unique=True, nullable=False)
-    cost = db.Column(db.Float, default=0.0)
-    price = db.Column(db.Float, default=0.0)
-    margin_percent = db.Column(db.Float, default=0.0)
+def load_credentials():
+    """
+    Carga usuario y contraseña desde credentials.csv.
+    Si no existe o está vacío, devuelve los valores por defecto.
+    """
+    if not os.path.exists(CREDENTIALS_FILE):
+        return DEFAULT_USERNAME, DEFAULT_PASSWORD
 
-
-class Sale(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.Date, nullable=False)
-    name = db.Column(db.String(120), nullable=False)      # cliente
-    product = db.Column(db.String(120), nullable=False)
-    status = db.Column(db.String(20), nullable=False)     # Pagado / Pendiente
-    cost_per_unit = db.Column(db.Float, default=0.0)
-    price_per_unit = db.Column(db.Float, default=0.0)
-    quantity = db.Column(db.Integer, default=1)
-    total = db.Column(db.Float, default=0.0)
-    profit = db.Column(db.Float, default=0.0)
-    comment = db.Column(db.String(255))
-
-    # Usuario del sistema que registró la venta
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    user = db.relationship("User", backref="sales", lazy=True)
-
-
-class Expense(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.Date, nullable=False)
-    description = db.Column(db.String(255), nullable=False)
-    category = db.Column(db.String(20), nullable=False)   # Gasto / Reinversión
-    amount = db.Column(db.Float, default=0.0)
-
-
-# ---------------------------------------------------------
-# UTILIDADES
-# ---------------------------------------------------------
-
-def parse_date(value):
-    if not value:
-        return None
     try:
-        return datetime.date.fromisoformat(value)
+        with open(CREDENTIALS_FILE, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            row = next(reader, None)
+            if not row:
+                return DEFAULT_USERNAME, DEFAULT_PASSWORD
+            username = row.get("username", DEFAULT_USERNAME)
+            password = row.get("password", DEFAULT_PASSWORD)
+            return username, password
     except Exception:
-        return None
+        return DEFAULT_USERNAME, DEFAULT_PASSWORD
 
 
-def require_login():
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-    return None
+def save_credentials(username: str, password: str):
+    """
+    Guarda usuario y contraseña en credentials.csv.
+    """
+    fieldnames = ["username", "password"]
+    with open(CREDENTIALS_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerow({"username": username, "password": password})
 
 
-# ---------------------------------------------------------
-# INICIALIZACIÓN DE LA BD, COLUMNA user_id EN SALE Y USUARIO ADMIN
-# ---------------------------------------------------------
+@dataclass
+class Sale:
+    date: date
+    name: str
+    product: str
+    cost_per_unit: float
+    price_per_unit: float
+    quantity: int
 
-with app.app_context():
-    db.create_all()
+    @property
+    def total_cost(self) -> float:
+        return self.cost_per_unit * self.quantity
 
-    # Asegurar que la tabla sale tenga la columna user_id (para instalaciones anteriores)
-    inspector = inspect(db.engine)
-    cols = [col["name"] for col in inspector.get_columns("sale")]
-    if "user_id" not in cols:
+    @property
+    def total_price(self) -> float:
+        return self.price_per_unit * self.quantity
+
+    @property
+    def profit(self) -> float:
+        return self.total_price - self.total_cost
+
+    @property
+    def margin_percent(self) -> float:
+        if self.total_cost == 0:
+            return 0.0
+        return (self.profit / self.total_cost) * 100.0
+
+
+class SalesApp:
+    def __init__(self, root: tk.Tk, username: str, password: str):
+        self.root = root
+        self.root.title("Control de Ventas - Windows")
+        self.root.configure(bg=BACKGROUND)
+        self.root.geometry("1100x650")
+
+        # Credenciales actuales en uso
+        self.username = username
+        self.password = password
+
+        self.sales: list[Sale] = []
+        self.filtered_sales: list[Sale] = []
+
+        # Filtro de fechas
+        self.filter_start_var = tk.StringVar()
+        self.filter_end_var = tk.StringVar()
+
+        self._setup_style()
+        self._build_ui()
+
+        self.load_sales()
+        self.apply_filter()
+
+    # ========== ESTILO ==========
+
+    def _setup_style(self):
+        style = ttk.Style(self.root)
         try:
-            db.session.execute("ALTER TABLE sale ADD COLUMN user_id INTEGER")
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-
-    # Crear o actualizar usuario admin usando variables de entorno
-    admin_username = os.environ.get("ADMIN_USER", "admin")
-    admin_password = os.environ.get("ADMIN_PASS")  # si no está, se usa fallback (solo para desarrollo)
-
-    admin_user = User.query.filter_by(username=admin_username).first()
-
-    if admin_user:
-        # Si hay password en entorno, sincronizamos la contraseña con esa
-        if admin_password:
-            admin_user.password_hash = generate_password_hash(admin_password)
-            admin_user.is_admin = True
-            db.session.commit()
-    else:
-        # No existe ese usuario admin, lo creamos
-        if admin_password:
-            # Producción: credenciales fuertes vía entorno
-            admin = User(
-                username=admin_username,
-                password_hash=generate_password_hash(admin_password),
-                is_admin=True,
-            )
-        else:
-            # Fallback para desarrollo local: admin / admin
-            admin = User(
-                username="admin",
-                password_hash=generate_password_hash("admin"),
-                is_admin=True,
-            )
-        db.session.add(admin)
-        db.session.commit()
-
-
-# ---------------------------------------------------------
-# AUTENTICACIÓN
-# ---------------------------------------------------------
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if session.get("user_id"):
-        return redirect(url_for("ventas"))
-
-    error = None
-    if request.method == "POST":
-        username = (request.form.get("username") or "").strip()
-        password = request.form.get("password") or ""
-
-        user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password_hash, password):
-            session["user_id"] = user.id
-            session["user"] = user.username
-            session["is_admin"] = bool(user.is_admin)
-            return redirect(url_for("ventas"))
-        else:
-            error = "Usuario o contraseña incorrectos."
-
-    return render_template("login.html", error=error)
-
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
-
-
-# ---------------------------------------------------------
-# GESTIÓN DE USUARIOS (SOLO ADMIN)
-# ---------------------------------------------------------
-
-@app.route("/usuarios", methods=["GET", "POST"])
-def usuarios():
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-    if not session.get("is_admin"):
-        return redirect(url_for("ventas"))
-
-    # Mensajes desde URL (delete) + POST (create)
-    error = request.args.get("error")
-    success = request.args.get("success")
-
-    if request.method == "POST":
-        form_error = None
-        form_success = None
-
-        username = (request.form.get("username") or "").strip()
-        password = request.form.get("password") or ""
-        is_admin = bool(request.form.get("is_admin"))
-
-        if not username or not password:
-            form_error = "Usuario y contraseña son obligatorios."
-        else:
-            existing = User.query.filter_by(username=username).first()
-            if existing:
-                form_error = "Ya existe un usuario con ese nombre."
-            else:
-                new_user = User(
-                    username=username,
-                    password_hash=generate_password_hash(password),
-                    is_admin=is_admin,
-                )
-                db.session.add(new_user)
-                db.session.commit()
-                form_success = "Usuario creado correctamente."
-
-        if form_error:
-            error = form_error
-        if form_success:
-            success = form_success
-
-    users = User.query.order_by(User.username).all()
-    return render_template(
-        "usuarios.html",
-        users=users,
-        error=error,
-        success=success,
-    )
-
-
-@app.post("/usuarios/<int:user_id>/delete")
-def delete_user(user_id):
-    """Eliminar usuario (solo admin). El admin no puede eliminarse a sí mismo."""
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-    if not session.get("is_admin"):
-        return redirect(url_for("ventas"))
-
-    current_user_id = session.get("user_id")
-    user = User.query.get_or_404(user_id)
-
-    if user.id == current_user_id:
-        return redirect(
-            url_for(
-                "usuarios",
-                error="No puedes eliminar tu propio usuario mientras estás conectado."
-            )
-        )
-
-    db.session.delete(user)
-    db.session.commit()
-    return redirect(url_for("usuarios", success="Usuario eliminado correctamente."))
-
-
-# ---------------------------------------------------------
-# RUTA RAÍZ
-# ---------------------------------------------------------
-
-@app.route("/")
-def index():
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-    return redirect(url_for("ventas"))
-
-
-# ---------------------------------------------------------
-# PRODUCTOS + CALCULADORA (FUSIONADOS)
-# ---------------------------------------------------------
-
-@app.route("/productos", methods=["GET", "POST"])
-def productos():
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-
-    error = None
-    success = None
-
-    # Valores por defecto para la calculadora
-    product_name_input = ""
-    cost_input = ""
-    margin_input = f"{MIN_MARGIN_PERCENT:.2f}"
-    quantity_input = "1"
-    price_result = None
-    profit_unit = None
-    profit_total = None
-    margin_used = None
-
-    if request.method == "POST":
-        form_type = (request.form.get("form_type") or "calculator").strip()
-
-        # --- LÓGICA DE CALCULADORA ---
-        if form_type == "calculator":
-            try:
-                product_name_input = (request.form.get("product_name") or "").strip()
-                cost_input = request.form.get("cost") or "0"
-                margin_input = request.form.get("margin") or f"{MIN_MARGIN_PERCENT:.2f}"
-                quantity_input = request.form.get("quantity") or "1"
-                save_to_catalog = bool(request.form.get("save_to_catalog"))
-
-                cost = float(cost_input or 0)
-                margin = float(margin_input or 0)
-                quantity = int(quantity_input or 1)
-
-                if margin < MIN_MARGIN_PERCENT:
-                    margin = MIN_MARGIN_PERCENT
-
-                if cost <= 0:
-                    raise ValueError("El costo debe ser mayor que cero.")
-                if quantity <= 0:
-                    raise ValueError("La cantidad debe ser mayor que cero.")
-
-                price_result = cost * (1 + margin / 100.0)
-                profit_unit = price_result - cost
-                profit_total = profit_unit * quantity
-                margin_used = (profit_unit / cost * 100.0) if cost > 0 else 0.0
-
-                if save_to_catalog:
-                    if not product_name_input:
-                        raise ValueError("Para guardar en el catálogo debes indicar un nombre de producto.")
-                    existing = Product.query.filter_by(name=product_name_input).first()
-                    if existing:
-                        existing.cost = cost
-                        existing.price = price_result
-                        existing.margin_percent = margin_used
-                    else:
-                        p = Product(
-                            name=product_name_input,
-                            cost=cost,
-                            price=price_result,
-                            margin_percent=margin_used,
-                        )
-                        db.session.add(p)
-                    db.session.commit()
-                    success = "Producto guardado/actualizado en el catálogo."
-            except Exception as e:
-                error = f"Error en la calculadora: {e}"
-
-        # --- LÓGICA DE FORMULARIO DIRECTO DE CATÁLOGO ---
-        elif form_type == "catalog":
-            try:
-                name = (request.form.get("name") or "").strip()
-                cost = float(request.form.get("cost") or 0)
-                price = float(request.form.get("price") or 0)
-
-                if not name:
-                    raise ValueError("El nombre del producto es obligatorio.")
-
-                margin_percent = 0.0
-                if cost > 0 and price >= cost:
-                    margin_percent = (price - cost) / cost * 100.0
-
-                existing = Product.query.filter_by(name=name).first()
-                if existing:
-                    existing.cost = cost
-                    existing.price = price
-                    existing.margin_percent = margin_percent
-                    db.session.commit()
-                    success = "Producto actualizado correctamente."
-                else:
-                    p = Product(
-                        name=name,
-                        cost=cost,
-                        price=price,
-                        margin_percent=margin_percent,
-                    )
-                    db.session.add(p)
-                    db.session.commit()
-                    success = "Producto creado correctamente."
-            except Exception as e:
-                error = f"Error al guardar el producto: {e}"
-
-    products = Product.query.order_by(Product.name).all()
-    return render_template(
-        "productos.html",
-        products=products,
-        error=error,
-        success=success,
-        min_margin=MIN_MARGIN_PERCENT,
-        product_name_input=product_name_input,
-        cost_input=cost_input,
-        margin_input=margin_input,
-        quantity_input=quantity_input,
-        price_result=price_result,
-        profit_unit=profit_unit,
-        profit_total=profit_total,
-        margin_used=margin_used,
-    )
-
-
-@app.post("/productos/<int:product_id>/delete")
-def delete_product(product_id):
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-    if not session.get("is_admin"):
-        return redirect(url_for("productos"))
-
-    product = Product.query.get_or_404(product_id)
-    db.session.delete(product)
-    db.session.commit()
-    return redirect(url_for("productos"))
-
-
-# ---------------------------------------------------------
-# REDIRECCIÓN /CALCULADORA -> /PRODUCTOS
-# ---------------------------------------------------------
-
-@app.route("/calculadora", methods=["GET", "POST"])
-def calculadora():
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-    return redirect(url_for("productos"))
-
-
-# ---------------------------------------------------------
-# VENTAS
-# ---------------------------------------------------------
-
-def apply_sales_filters(query, filter_name, filter_status, date_from_str, date_to_str):
-    if filter_name:
-        like_pattern = f"%{filter_name}%"
-        query = query.filter(Sale.name.ilike(like_pattern))
-
-    if filter_status:
-        query = query.filter(Sale.status == filter_status)
-
-    date_from = parse_date(date_from_str)
-    date_to = parse_date(date_to_str)
-    if date_from:
-        query = query.filter(Sale.date >= date_from)
-    if date_to:
-        query = query.filter(Sale.date <= date_to)
-
-    return query
-
-
-@app.route("/ventas", methods=["GET", "POST"])
-def ventas():
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-
-    error = None
-    success = request.args.get("success")
-
-    if request.method == "POST":
-        try:
-            date_str = request.form.get("date")
-            date = parse_date(date_str) or datetime.date.today()
-
-            name = (request.form.get("name") or "").strip()
-            product_from_select = (request.form.get("product_select") or "").strip()
-            product_input = (request.form.get("product") or "").strip()
-            product = product_input or product_from_select
-
-            status = request.form.get("status") or "Pagado"
-            cost_per_unit = float(request.form.get("cost_per_unit") or 0)
-            price_per_unit = float(request.form.get("price_per_unit") or 0)
-            quantity = int(request.form.get("quantity") or 1)
-            comment = (request.form.get("comment") or "").strip()
-
-            if not name:
-                raise ValueError("El nombre del cliente es obligatorio.")
-            if not product:
-                raise ValueError("Debes seleccionar o escribir un producto.")
-            if quantity <= 0:
-                raise ValueError("La cantidad debe ser mayor que cero.")
-
-            total = price_per_unit * quantity
-            profit = (price_per_unit - cost_per_unit) * quantity
-
-            sale = Sale(
-                date=date,
-                name=name,
-                product=product,
-                status=status,
-                cost_per_unit=cost_per_unit,
-                price_per_unit=price_per_unit,
-                quantity=quantity,
-                total=total,
-                profit=profit,
-                comment=comment,
-                user_id=session.get("user_id"),
-            )
-            db.session.add(sale)
-            db.session.commit()
-            success = "Venta guardada correctamente."
-        except Exception as e:
-            error = f"Error al guardar la venta: {e}"
-
-    # Filtros (GET)
-    filter_name = request.args.get("filter_name") or ""
-    filter_status = request.args.get("filter_status") or ""
-    date_from = request.args.get("date_from") or ""
-    date_to = request.args.get("date_to") or ""
-    filter_user_id = request.args.get("filter_user_id") or ""
-
-    query = Sale.query
-    query = apply_sales_filters(query, filter_name, filter_status, date_from, date_to)
-
-    # Filtro por usuario que registró la venta
-    if filter_user_id:
-        try:
-            user_filter_id = int(filter_user_id)
-            query = query.filter(Sale.user_id == user_filter_id)
-        except ValueError:
-            filter_user_id = ""
-
-    sales = query.order_by(Sale.date.desc(), Sale.id.desc()).all()
-
-    # Totales
-    total_ventas = len(sales)
-    total_monto = sum(float(s.total or 0) for s in sales)
-    total_ganancia = sum(float(s.profit or 0) for s in sales)
-    total_pagado = sum(float(s.total or 0) for s in sales if s.status == "Pagado")
-    total_pendiente = sum(float(s.total or 0) for s in sales if s.status == "Pendiente")
-
-    products = Product.query.order_by(Product.name).all()
-    users = User.query.order_by(User.username).all()
-
-    # Diccionario para JS { nombre: {cost, price} }
-    product_mapping = {
-        p.name: {"cost": float(p.cost or 0), "price": float(p.price or 0)}
-        for p in products
-    }
-
-    return render_template(
-        "ventas.html",
-        error=error,
-        success=success,
-        sales=sales,
-        products=products,
-        users=users,
-        filter_name=filter_name,
-        filter_status=filter_status,
-        date_from=date_from,
-        date_to=date_to,
-        filter_user_id=filter_user_id,
-        total_ventas=total_ventas,
-        total_monto=total_monto,
-        total_ganancia=total_ganancia,
-        total_pagado=total_pagado,
-        total_pendiente=total_pendiente,
-        product_mapping=product_mapping,
-    )
-
-
-@app.post("/ventas/<int:sale_id>/delete")
-def delete_sale(sale_id):
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-
-    sale = Sale.query.get_or_404(sale_id)
-    db.session.delete(sale)
-    db.session.commit()
-    return redirect(url_for("ventas", success="Venta eliminada correctamente."))
-
-
-@app.route("/ventas/export")
-def ventas_export():
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-
-    filter_name = request.args.get("filter_name") or ""
-    filter_status = request.args.get("filter_status") or ""
-    date_from = request.args.get("date_from") or ""
-    date_to = request.args.get("date_to") or ""
-    filter_user_id = request.args.get("filter_user_id") or ""
-
-    query = Sale.query
-    query = apply_sales_filters(query, filter_name, filter_status, date_from, date_to)
-
-    if filter_user_id:
-        try:
-            user_filter_id = int(filter_user_id)
-            query = query.filter(Sale.user_id == user_filter_id)
-        except ValueError:
+            style.theme_use("clam")
+        except tk.TclError:
             pass
 
-    sales = query.order_by(Sale.date.asc(), Sale.id.asc()).all()
+        style.configure("TNotebook", background=BACKGROUND)
+        style.configure(
+            "TNotebook.Tab",
+            background=BACKGROUND_ELEVATED,
+            foreground=TEXT_SECONDARY,
+            padding=(10, 5),
+            font=TITLE_FONT,
+        )
+        style.map(
+            "TNotebook.Tab",
+            background=[("selected", CARD)],
+            foreground=[("selected", TEXT_PRIMARY)],
+        )
 
-    rows = []
-    for s in sales:
-        rows.append({
-            "Fecha": s.date.isoformat() if s.date else "",
-            "Nombre / Cliente": s.name,
-            "Producto": s.product,
-            "Estado": s.status,
-            "Costo por unidad": s.cost_per_unit,
-            "Precio por unidad": s.price_per_unit,
-            "Cantidad": s.quantity,
-            "Total": s.total,
-            "Ganancia": s.profit,
-            "Comentario": s.comment or "",
-            "Usuario": s.user.username if getattr(s, "user", None) else "",
-        })
+        style.configure("Dark.TFrame", background=BACKGROUND)
+        style.configure("Card.TFrame", background=CARD)
 
-    df = pd.DataFrame(rows)
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Ventas")
-    output.seek(0)
+        style.configure(
+            "Dark.TLabel",
+            background=BACKGROUND,
+            foreground=TEXT_PRIMARY,
+            font=TITLE_FONT,
+        )
+        style.configure(
+            "Card.TLabel",
+            background=CARD,
+            foreground=TEXT_PRIMARY,
+            font=TITLE_FONT,
+        )
+        style.configure(
+            "Secondary.TLabel",
+            background=BACKGROUND,
+            foreground=TEXT_SECONDARY,
+            font=DATA_FONT,
+        )
 
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name="ventas_filtradas.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
+        style.configure(
+            "Dark.TButton",
+            background=CARD,
+            foreground=TEXT_PRIMARY,
+            padding=6,
+            font=DATA_FONT,
+        )
+        style.map(
+            "Dark.TButton",
+            background=[("active", ACCENT)],
+            foreground=[("active", "#ffffff")],
+        )
 
+        style.configure(
+            "Treeview",
+            background=CARD,
+            foreground=TEXT_PRIMARY,
+            fieldbackground=CARD,
+            rowheight=24,
+            font=DATA_FONT,
+        )
+        style.configure(
+            "Treeview.Heading",
+            background=BACKGROUND_ELEVATED,
+            foreground=TEXT_PRIMARY,
+            font=TITLE_FONT,
+        )
+        style.map(
+            "Treeview",
+            background=[("selected", ACCENT)],
+            foreground=[("selected", "#ffffff")],
+        )
 
-# ---------------------------------------------------------
-# CONTROL DE FLUJO (GASTOS / REINVERSIÓN)
-# ---------------------------------------------------------
+    # ========== UI GENERAL ==========
 
-@app.route("/flujo", methods=["GET", "POST"])
-def flujo():
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
+    def _build_ui(self):
+        notebook = ttk.Notebook(self.root)
+        notebook.pack(fill="both", expand=True, padx=8, pady=8)
 
-    error = None
-    success = None
+        self.sales_frame = ttk.Frame(notebook, style="Dark.TFrame")
+        self.dashboard_frame = ttk.Frame(notebook, style="Dark.TFrame")
 
-    if request.method == "POST":
+        notebook.add(self.sales_frame, text="Ventas")
+        notebook.add(self.dashboard_frame, text="Dashboard")
+
+        self._build_sales_tab()
+        self._build_dashboard_tab()
+
+    # ========== TAB VENTAS ==========
+
+    def _build_sales_tab(self):
+        # Barra superior izquierda con botón de configuración de usuario
+        header_bar = ttk.Frame(self.sales_frame, style="Dark.TFrame")
+        header_bar.pack(fill="x", padx=8, pady=(8, 0))
+
+        ttk.Button(
+            header_bar,
+            text="Configurar usuario",
+            style="Dark.TButton",
+            command=self.configure_user,
+        ).pack(side="left")
+
+        # --- Formulario arriba ---
+        form_card = ttk.Frame(self.sales_frame, style="Card.TFrame")
+        form_card.pack(fill="x", padx=8, pady=8)
+
+        self.name_var = tk.StringVar()
+        self.product_var = tk.StringVar()
+        self.cost_var = tk.StringVar()
+        self.price_var = tk.StringVar()
+        self.qty_var = tk.StringVar(value="1")
+        self.date_var = tk.StringVar(value=date.today().strftime("%Y-%m-%d"))
+
+        def make_label(frame, txt):
+            return ttk.Label(frame, text=txt, style="Card.TLabel", anchor="center")
+
+        # Primera fila
+        row1 = ttk.Frame(form_card, style="Card.TFrame")
+        row1.pack(fill="x", padx=8, pady=4)
+
+        make_label(row1, "Nombre / Cliente:").grid(row=0, column=0, sticky="we")
+        entry_name = ttk.Entry(
+            row1, textvariable=self.name_var, width=25, justify="center"
+        )
+        entry_name.grid(row=1, column=0, padx=(0, 10))
+
+        make_label(row1, "Producto:").grid(row=0, column=1, sticky="we")
+        self.product_combo = ttk.Combobox(
+            row1,
+            textvariable=self.product_var,
+            values=PRODUCTS,
+            state="readonly",
+            width=23,
+            justify="center",
+        )
+        self.product_combo.grid(row=1, column=1, padx=(0, 10))
+        if PRODUCTS:
+            self.product_combo.current(0)
+
+        make_label(row1, "Fecha (YYYY-MM-DD):").grid(row=0, column=2, sticky="we")
+        entry_date = ttk.Entry(
+            row1, textvariable=self.date_var, width=15, justify="center"
+        )
+        entry_date.grid(row=1, column=2, padx=(0, 10))
+
+        # Segunda fila
+        row2 = ttk.Frame(form_card, style="Card.TFrame")
+        row2.pack(fill="x", padx=8, pady=4)
+
+        make_label(row2, "Costo por unidad:").grid(row=0, column=0, sticky="we")
+        entry_cost = ttk.Entry(
+            row2, textvariable=self.cost_var, width=15, justify="right"
+        )
+        entry_cost.grid(row=1, column=0, padx=(0, 10))
+
+        make_label(row2, "Precio por unidad:").grid(row=0, column=1, sticky="we")
+        entry_price = ttk.Entry(
+            row2, textvariable=self.price_var, width=15, justify="right"
+        )
+        entry_price.grid(row=1, column=1, padx=(0, 10))
+
+        make_label(row2, "Cantidad:").grid(row=0, column=2, sticky="we")
+        entry_qty = ttk.Entry(
+            row2, textvariable=self.qty_var, width=8, justify="right"
+        )
+        entry_qty.grid(row=1, column=2, padx=(0, 10))
+
+        btn_row = ttk.Frame(form_card, style="Card.TFrame")
+        btn_row.pack(fill="x", padx=8, pady=4)
+
+        ttk.Button(
+            btn_row,
+            text="Agregar venta",
+            style="Dark.TButton",
+            command=self.add_sale,
+        ).pack(side="left", padx=(0, 8))
+
+        ttk.Button(
+            btn_row,
+            text="Eliminar seleccionada",
+            style="Dark.TButton",
+            command=self.delete_selected,
+        ).pack(side="left")
+
+        # --- Tabla central ---
+        table_frame = ttk.Frame(self.sales_frame, style="Dark.TFrame")
+        table_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+
+        columns = (
+            "date",
+            "name",
+            "product",
+            "cost",
+            "price",
+            "qty",
+            "total",
+            "profit",
+            "margin",
+        )
+        self.tree = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            style="Treeview",
+        )
+        headings = {
+            "date": "Fecha",
+            "name": "Nombre",
+            "product": "Producto",
+            "cost": "Costo u.",
+            "price": "Precio u.",
+            "qty": "Cant.",
+            "total": "Total venta",
+            "profit": "Ganancia",
+            "margin": "Utilidad %",
+        }
+        for col in columns:
+            self.tree.heading(col, text=headings[col])
+
+        # Alineación: textos centrados, números a la derecha
+        self.tree.column("date", width=90, anchor="center")
+        self.tree.column("name", width=130, anchor="center")
+        self.tree.column("product", width=130, anchor="center")
+        self.tree.column("cost", width=80, anchor="e")
+        self.tree.column("price", width=80, anchor="e")
+        self.tree.column("qty", width=60, anchor="e")
+        self.tree.column("total", width=100, anchor="e")
+        self.tree.column("profit", width=100, anchor="e")
+        self.tree.column("margin", width=80, anchor="e")
+
+        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=vsb.set)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+
+        table_frame.rowconfigure(0, weight=1)
+        table_frame.columnconfigure(0, weight=1)
+
+        # --- Filtro y resumen abajo ---
+        bottom = ttk.Frame(self.sales_frame, style="Dark.TFrame")
+        bottom.pack(fill="x", padx=8, pady=(0, 8))
+
+        filter_frame = ttk.Frame(bottom, style="Dark.TFrame")
+        filter_frame.pack(side="left", padx=4)
+
+        ttk.Label(
+            filter_frame,
+            text="Desde (YYYY-MM-DD):",
+            style="Secondary.TLabel",
+            anchor="center",
+        ).grid(row=0, column=0, sticky="we")
+        ttk.Entry(
+            filter_frame,
+            textvariable=self.filter_start_var,
+            width=12,
+            justify="right",
+        ).grid(row=1, column=0, padx=(0, 8))
+
+        ttk.Label(
+            filter_frame,
+            text="Hasta:",
+            style="Secondary.TLabel",
+            anchor="center",
+        ).grid(row=0, column=1, sticky="we")
+        ttk.Entry(
+            filter_frame,
+            textvariable=self.filter_end_var,
+            width=12,
+            justify="right",
+        ).grid(row=1, column=1, padx=(0, 8))
+
+        ttk.Button(
+            filter_frame,
+            text="Aplicar filtro",
+            style="Dark.TButton",
+            command=self.apply_filter,
+        ).grid(row=1, column=2, padx=(0, 8))
+
+        ttk.Button(
+            filter_frame,
+            text="Quitar filtro",
+            style="Dark.TButton",
+            command=self.clear_filter,
+        ).grid(row=1, column=3)
+
+        summary_frame = ttk.Frame(bottom, style="Dark.TFrame")
+        summary_frame.pack(side="right", padx=4)
+
+        self.summary_label = ttk.Label(
+            summary_frame,
+            text="Ganancia total mostrada: ₡0.00",
+            style="Dark.TLabel",
+            anchor="center",
+        )
+        self.summary_label.pack(anchor="e")
+
+    # ========== TAB DASHBOARD ==========
+
+    def _build_dashboard_tab(self):
+        top_frame = ttk.Frame(self.dashboard_frame, style="Dark.TFrame")
+        top_frame.pack(fill="x", padx=8, pady=8)
+
+        self.lbl_total_revenue = ttk.Label(
+            top_frame, text="Ingresos: ₡0.00", style="Dark.TLabel", anchor="center"
+        )
+        self.lbl_total_cost = ttk.Label(
+            top_frame, text="Costo: ₡0.00", style="Dark.TLabel", anchor="center"
+        )
+        self.lbl_total_profit = ttk.Label(
+            top_frame, text="Ganancia: ₡0.00", style="Dark.TLabel", anchor="center"
+        )
+        self.lbl_margin = ttk.Label(
+            top_frame, text="Margen: 0.0%", style="Dark.TLabel", anchor="center"
+        )
+        self.lbl_units = ttk.Label(
+            top_frame, text="Unidades: 0", style="Dark.TLabel", anchor="center"
+        )
+        self.lbl_orders = ttk.Label(
+            top_frame, text="Órdenes: 0", style="Dark.TLabel", anchor="center"
+        )
+
+        self.lbl_total_revenue.grid(row=0, column=0, sticky="we", padx=4, pady=2)
+        self.lbl_total_cost.grid(row=1, column=0, sticky="we", padx=4, pady=2)
+        self.lbl_total_profit.grid(row=2, column=0, sticky="we", padx=4, pady=2)
+        self.lbl_margin.grid(row=0, column=1, sticky="we", padx=4, pady=2)
+        self.lbl_units.grid(row=1, column=1, sticky="we", padx=4, pady=2)
+        self.lbl_orders.grid(row=2, column=1, sticky="we", padx=4, pady=2)
+
+        chart_card = ttk.Frame(self.dashboard_frame, style="Card.TFrame")
+        chart_card.pack(fill="both", expand=True, padx=8, pady=8)
+
+        self.fig = Figure(figsize=(6, 4), dpi=100)
+        self.ax_top_products = self.fig.add_subplot(211)
+        self.ax_daily_profit = self.fig.add_subplot(212)
+
+        self.ax_top_products.set_facecolor("#141827")
+        self.ax_daily_profit.set_facecolor("#141827")
+        self.fig.patch.set_facecolor(CARD)
+
+        self.canvas = FigureCanvasTkAgg(self.fig, master=chart_card)
+        self.canvas.get_tk_widget().pack(fill="both", expand=True)
+
+    # ========== LÓGICA VENTAS ==========
+
+    def parse_date(self, s: str | None) -> date | None:
+        if not s:
+            return None
         try:
-            date_str = request.form.get("date")
-            date = parse_date(date_str) or datetime.date.today()
-            description = (request.form.get("description") or "").strip()
-            category = request.form.get("category") or "Gasto"
-            amount = float(request.form.get("amount") or 0)
+            return datetime.strptime(s.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            return None
 
-            if not description:
-                raise ValueError("La descripción es obligatoria.")
-            if amount <= 0:
-                raise ValueError("El monto debe ser mayor que cero.")
+    def add_sale(self):
+        name = self.name_var.get().strip()
+        product = self.product_var.get().strip()
+        cost_str = self.cost_var.get().replace(",", ".").strip()
+        price_str = self.price_var.get().replace(",", ".").strip()
+        qty_str = self.qty_var.get().strip()
+        date_str = self.date_var.get().strip()
 
-            e = Expense(
-                date=date,
-                description=description,
-                category=category,
-                amount=amount,
+        if not name or not product:
+            messagebox.showerror("Error", "Nombre y producto son obligatorios.")
+            return
+
+        d = self.parse_date(date_str)
+        if d is None:
+            messagebox.showerror("Error", "Fecha inválida. Usa formato YYYY-MM-DD.")
+            return
+
+        try:
+            cost = float(cost_str)
+            price = float(price_str)
+            qty = int(qty_str)
+        except ValueError:
+            messagebox.showerror(
+                "Error", "Costo, precio y cantidad deben ser números."
             )
-            db.session.add(e)
-            db.session.commit()
-            success = "Movimiento registrado correctamente."
-        except Exception as e:
-            error = f"Error al registrar movimiento: {e}"
+            return
 
-    date_from = request.args.get("date_from") or ""
-    date_to = request.args.get("date_to") or ""
-    category_filter = request.args.get("category_filter") or ""
+        if qty <= 0:
+            messagebox.showerror("Error", "La cantidad debe ser mayor que cero.")
+            return
 
-    exp_query = Expense.query
-    sales_query = Sale.query
+        sale = Sale(
+            date=d,
+            name=name,
+            product=product,
+            cost_per_unit=cost,
+            price_per_unit=price,
+            quantity=qty,
+        )
+        self.sales.append(sale)
+        self.save_sales()
+        self.apply_filter()
 
-    d_from = parse_date(date_from)
-    d_to = parse_date(date_to)
+        self.product_var.set(PRODUCTS[0] if PRODUCTS else "")
+        self.cost_var.set("")
+        self.price_var.set("")
+        self.qty_var.set("1")
 
-    if d_from:
-        exp_query = exp_query.filter(Expense.date >= d_from)
-        sales_query = sales_query.filter(Sale.date >= d_from)
-    if d_to:
-        exp_query = exp_query.filter(Expense.date <= d_to)
-        sales_query = sales_query.filter(Sale.date <= d_to)
+    def delete_selected(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showinfo("Eliminar", "Selecciona una fila para eliminar.")
+            return
 
-    if category_filter:
-        exp_query = exp_query.filter(Expense.category == category_filter)
+        if not messagebox.askyesno(
+            "Confirmar", "¿Eliminar la(s) venta(s) seleccionada(s)?"
+        ):
+            return
 
-    expenses = exp_query.order_by(Expense.date.desc(), Expense.id.desc()).all()
-    sales = sales_query.all()
+        for item_id in selected:
+            index_in_filtered = int(self.tree.item(item_id, "text"))
+            sale_obj = self.filtered_sales[index_in_filtered]
+            if sale_obj in self.sales:
+                self.sales.remove(sale_obj)
 
-    total_ingresos = sum(float(s.total or 0) for s in sales)
-    total_ganancia = sum(float(s.profit or 0) for s in sales)
+        self.save_sales()
+        self.apply_filter()
 
-    total_gastos = sum(float(e.amount or 0) for e in expenses if e.category == "Gasto")
-    total_reinv = sum(float(e.amount or 0) for e in expenses if e.category == "Reinversión")
+    def load_sales(self):
+        if not os.path.exists(DATA_FILE):
+            return
+        self.sales.clear()
+        with open(DATA_FILE, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                d = self.parse_date(row.get("date", ""))
+                if d is None:
+                    continue
+                try:
+                    sale = Sale(
+                        date=d,
+                        name=row.get("name", ""),
+                        product=row.get("product", ""),
+                        cost_per_unit=float(row.get("cost_per_unit", "0")),
+                        price_per_unit=float(row.get("price_per_unit", "0")),
+                        quantity=int(row.get("quantity", "0")),
+                    )
+                    self.sales.append(sale)
+                except ValueError:
+                    continue
 
-    total_egresos = total_gastos + total_reinv
-    neto = total_ganancia - total_egresos
+    def save_sales(self):
+        fieldnames = [
+            "date",
+            "name",
+            "product",
+            "cost_per_unit",
+            "price_per_unit",
+            "quantity",
+        ]
+        with open(DATA_FILE, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for s in self.sales:
+                writer.writerow(
+                    {
+                        "date": s.date.strftime("%Y-%m-%d"),
+                        "name": s.name,
+                        "product": s.product,
+                        "cost_per_unit": f"{s.cost_per_unit:.4f}",
+                        "price_per_unit": f"{s.price_per_unit:.4f}",
+                        "quantity": s.quantity,
+                    }
+                )
 
-    ahorro_objetivo = total_ganancia * 0.10
-    ahorro_real = max(neto, 0.0)
-    ahorro_faltante = max(ahorro_objetivo - ahorro_real, 0.0)
-    meta_cumplida = (total_ganancia > 0) and (ahorro_real >= ahorro_objetivo)
+    def clear_filter(self):
+        self.filter_start_var.set("")
+        self.filter_end_var.set("")
+        self.apply_filter()
 
-    return render_template(
-        "flujo.html",
-        error=error,
-        success=success,
-        expenses=expenses,
-        date_from=date_from,
-        date_to=date_to,
-        category_filter=category_filter,
-        total_ingresos=total_ingresos,
-        total_ganancia=total_ganancia,
-        total_gastos=total_gastos,
-        total_reinv=total_reinv,
-        total_egresos=total_egresos,
-        neto=neto,
-        ahorro_objetivo=ahorro_objetivo,
-        ahorro_real=ahorro_real,
-        ahorro_faltante=ahorro_faltante,
-        meta_cumplida=meta_cumplida,
-    )
+    def apply_filter(self):
+        start = self.parse_date(self.filter_start_var.get())
+        end = self.parse_date(self.filter_end_var.get())
+
+        if start and end and start > end:
+            start, end = end, start
+
+        self.filtered_sales = []
+        for s in self.sales:
+            if start and s.date < start:
+                continue
+            if end and s.date > end:
+                continue
+            self.filtered_sales.append(s)
+
+        self.refresh_table()
+        self.refresh_summary()
+        self.refresh_dashboard()
+
+    def refresh_table(self):
+        self.tree.delete(*self.tree.get_children())
+        for idx, s in enumerate(self.filtered_sales):
+            self.tree.insert(
+                "",
+                "end",
+                text=str(idx),
+                values=(
+                    s.date.strftime("%Y-%m-%d"),
+                    s.name,
+                    s.product,
+                    f"{s.cost_per_unit:,.2f}",
+                    f"{s.price_per_unit:,.2f}",
+                    s.quantity,
+                    f"{s.total_price:,.2f}",
+                    f"{s.profit:,.2f}",
+                    f"{s.margin_percent:.1f}",
+                ),
+            )
+
+    def refresh_summary(self):
+        total_profit = sum(s.profit for s in self.filtered_sales)
+        self.summary_label.config(
+            text=f"Ganancia total mostrada: ₡{total_profit:,.2f}"
+        )
+
+    # ========== DASHBOARD (GRÁFICOS PASTEL) ==========
+
+    def refresh_dashboard(self):
+        sales = self.filtered_sales
+
+        total_revenue = sum(s.total_price for s in sales)
+        total_cost = sum(s.total_cost for s in sales)
+        total_profit = sum(s.profit for s in sales)
+        total_units = sum(s.quantity for s in sales)
+        total_orders = len(sales)
+        margin = (total_profit / total_cost * 100) if total_cost > 0 else 0.0
+
+        self.lbl_total_revenue.config(text=f"Ingresos: ₡{total_revenue:,.2f}")
+        self.lbl_total_cost.config(text=f"Costo: ₡{total_cost:,.2f}")
+        self.lbl_total_profit.config(text=f"Ganancia: ₡{total_profit:,.2f}")
+        self.lbl_margin.config(text=f"Margen: {margin:.1f}%")
+        self.lbl_units.config(text=f"Unidades: {total_units}")
+        self.lbl_orders.config(text=f"Órdenes: {total_orders}")
+
+        # --- Gráfico pastel: top productos por ganancia ---
+        self.ax_top_products.clear()
+        self.ax_top_products.set_facecolor("#141827")
+
+        if sales:
+            profit_by_product = defaultdict(float)
+            for s in sales:
+                profit_by_product[s.product] += s.profit
+
+            items = sorted(
+                profit_by_product.items(), key=lambda x: x[1], reverse=True
+            )[:5]
+            labels = [i[0] for i in items]
+            sizes = [i[1] for i in items]
+
+            if sum(sizes) > 0:
+                wedges, texts, autotexts = self.ax_top_products.pie(
+                    sizes,
+                    labels=labels,
+                    autopct="%1.1f%%",
+                    textprops={"color": "white", "fontsize": 8},
+                )
+                for t in texts:
+                    t.set_color("white")
+                self.ax_top_products.set_title(
+                    "Top productos por ganancia", color="white"
+                )
+                self.ax_top_products.axis("equal")
+            else:
+                self.ax_top_products.set_title(
+                    "Sin datos de productos (ganancia 0)", color="white"
+                )
+        else:
+            self.ax_top_products.set_title("Sin datos de productos", color="white")
+
+        # --- Gráfico pastel: distribución de ganancia por fecha ---
+        self.ax_daily_profit.clear()
+        self.ax_daily_profit.set_facecolor("#141827")
+
+        if sales:
+            profit_by_date = defaultdict(float)
+            for s in sales:
+                profit_by_date[s.date] += s.profit
+
+            dates_sorted = sorted(profit_by_date.keys())
+            labels = [d.strftime("%Y-%m-%d") for d in dates_sorted]
+            sizes = [profit_by_date[d] for d in dates_sorted]
+
+            if sum(sizes) > 0:
+                wedges, texts, autotexts = self.ax_daily_profit.pie(
+                    sizes,
+                    labels=labels,
+                    autopct="%1.1f%%",
+                    textprops={"color": "white", "fontsize": 8},
+                )
+                for t in texts:
+                    t.set_color("white")
+                self.ax_daily_profit.set_title(
+                    "Distribución de ganancia por día", color="white"
+                )
+                self.ax_daily_profit.axis("equal")
+            else:
+                self.ax_daily_profit.set_title(
+                    "Sin datos de fechas (ganancia 0)", color="white"
+                )
+        else:
+            self.ax_daily_profit.set_title("Sin datos de fechas", color="white")
+
+        self.fig.tight_layout()
+        self.canvas.draw()
+
+    # ========== CONFIGURAR USUARIO ==========
+
+    def configure_user(self):
+        """
+        Permite cambiar usuario y contraseña.
+        Solo se aplica si se conoce la contraseña actual.
+        """
+        # Pide la contraseña actual como verificación
+        current_pwd = simpledialog.askstring(
+            "Verificación",
+            "Ingrese la contraseña actual:",
+            show="*",
+            parent=self.root,
+        )
+        if current_pwd is None:
+            return  # Cancelado
+        if current_pwd != self.password:
+            messagebox.showerror("Error", "Contraseña actual incorrecta.")
+            return
+
+        # Pide nuevo usuario
+        new_user = simpledialog.askstring(
+            "Nuevo usuario",
+            "Ingrese el nuevo usuario:",
+            parent=self.root,
+        )
+        if new_user is None or not new_user.strip():
+            messagebox.showinfo("Info", "Usuario no modificado.")
+            return
+        new_user = new_user.strip()
+
+        # Pide nueva contraseña
+        new_pwd = simpledialog.askstring(
+            "Nueva contraseña",
+            "Ingrese la nueva contraseña:",
+            show="*",
+            parent=self.root,
+        )
+        if new_pwd is None or not new_pwd.strip():
+            messagebox.showinfo("Info", "Contraseña no modificada.")
+            return
+        new_pwd = new_pwd.strip()
+
+        # Guarda en archivo y actualiza en memoria
+        save_credentials(new_user, new_pwd)
+        self.username = new_user
+        self.password = new_pwd
+
+        messagebox.showinfo(
+            "Éxito",
+            "Usuario y contraseña actualizados.\n"
+            "Se usarán en el próximo inicio de sesión.",
+        )
 
 
-@app.route("/flujo/export")
-def flujo_export():
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
+def main():
+    # 1) Cargar credenciales actuales (o defaults)
+    stored_username, stored_password = load_credentials()
 
-    date_from = request.args.get("date_from") or ""
-    date_to = request.args.get("date_to") or ""
-    category_filter = request.args.get("category_filter") or ""
+    root = tk.Tk()
+    root.withdraw()  # ocultar ventana principal mientras se hace login
 
-    exp_query = Expense.query
+    # 2) Diálogo de login (máx 3 intentos)
+    for attempt in range(3):
+        user = simpledialog.askstring(
+            "Acceso",
+            "Usuario:",
+            parent=root,
+        )
+        if user is None:
+            root.destroy()
+            return
 
-    d_from = parse_date(date_from)
-    d_to = parse_date(date_to)
+        pwd = simpledialog.askstring(
+            "Acceso",
+            "Contraseña:",
+            show="*",
+            parent=root,
+        )
+        if pwd is None:
+            root.destroy()
+            return
 
-    if d_from:
-        exp_query = exp_query.filter(Expense.date >= d_from)
-    if d_to:
-        exp_query = exp_query.filter(Expense.date <= d_to)
-    if category_filter:
-        exp_query = exp_query.filter(Expense.category == category_filter)
+        if user == stored_username and pwd == stored_password:
+            break
+        else:
+            messagebox.showerror("Error", "Usuario o contraseña incorrectos.")
 
-    expenses = exp_query.order_by(Expense.date.asc(), Expense.id.asc()).all()
-
-    rows = []
-    for e in expenses:
-        rows.append({
-            "Fecha": e.date.isoformat() if e.date else "",
-            "Descripción": e.description,
-            "Tipo": e.category,
-            "Monto": e.amount,
-        })
-
-    df = pd.DataFrame(rows)
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Flujo")
-    output.seek(0)
-
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name="flujo_filtrado.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
-
-
-# ---------------------------------------------------------
-# DASHBOARD (ROBUSTO + ALERTAS)
-# ---------------------------------------------------------
-
-@app.route("/dashboard")
-def dashboard():
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-
-    # Filtros de fecha + presets rápidos
-    date_from = request.args.get("date_from") or ""
-    date_to = request.args.get("date_to") or ""
-    preset = request.args.get("preset") or ""
-
-    sales_query = Sale.query
-
-    d_from = None
-    d_to = None
-
-    if preset:
-        today = datetime.date.today()
-
-        if preset == "week":            # últimos 7 días
-            d_to = today
-            d_from = today - datetime.timedelta(days=7)
-        elif preset == "4weeks":        # últimas 4 semanas (28 días)
-            d_to = today
-            d_from = today - datetime.timedelta(days=28)
-        elif preset == "month":         # este mes (desde el día 1)
-            d_to = today
-            d_from = today.replace(day=1)
-        elif preset == "year":          # este año (desde 1 de enero)
-            d_to = today
-            d_from = today.replace(month=1, day=1)
-
-        date_from = d_from.isoformat() if d_from else ""
-        date_to = d_to.isoformat() if d_to else ""
     else:
-        d_from = parse_date(date_from)
-        d_to = parse_date(date_to)
+        messagebox.showerror("Bloqueado", "Demasiados intentos fallidos.")
+        root.destroy()
+        return
 
-    if d_from:
-        sales_query = sales_query.filter(Sale.date >= d_from)
-    if d_to:
-        sales_query = sales_query.filter(Sale.date <= d_to)
+    # 3) Mostrar ventana principal
+    root.deiconify()
+    app = SalesApp(root, stored_username, stored_password)
+    root.mainloop()
 
-    sales = sales_query.order_by(Sale.date).all()
-
-    # Métricas del periodo filtrado
-    total_ganancia = sum(float(s.profit or 0) for s in sales)
-    total_monto_period = sum(float(s.total or 0) for s in sales)
-    total_ventas_period = len(sales)
-
-    avg_ticket = total_monto_period / total_ventas_period if total_ventas_period > 0 else 0.0
-    avg_profit_per_sale = total_ganancia / total_ventas_period if total_ventas_period > 0 else 0.0
-
-    # Promedio diario de utilidad (manejo robusto de fecha)
-    profit_by_day = defaultdict(float)
-    for s in sales:
-        d = s.date
-        if not d:
-            continue
-        if isinstance(d, datetime.datetime):
-            d = d.date()
-        if isinstance(d, str):
-            try:
-                d = datetime.date.fromisoformat(d)
-            except Exception:
-                continue
-        profit_by_day[d] += float(s.profit or 0)
-
-    num_dias = len(profit_by_day)
-    avg_daily_profit = total_ganancia / num_dias if num_dias > 0 else 0.0
-
-    # Top productos por ganancia acumulada (filtrada)
-    profit_by_product = defaultdict(float)
-    for s in sales:
-        profit_by_product[s.product] += float(s.profit or 0)
-
-    items = sorted(profit_by_product.items(), key=lambda x: x[1], reverse=True)
-    top_items = items[:5]
-    top_labels = [name for name, _ in top_items]
-    top_values = [round(value, 2) for _, value in top_items]
-
-    # Ganancias por semana (ISO week) con manejo robusto de fechas
-    profit_by_week = defaultdict(float)
-    for s in sales:
-        d = s.date
-        if not d:
-            continue
-        if isinstance(d, datetime.datetime):
-            d = d.date()
-        if isinstance(d, str):
-            try:
-                d = datetime.date.fromisoformat(d)
-            except Exception:
-                continue
-        try:
-            y, w, _ = d.isocalendar()
-        except Exception:
-            continue
-        key = f"{y}-W{w:02d}"
-        profit_by_week[key] += float(s.profit or 0)
-
-    weeks_sorted = sorted(profit_by_week.items(), key=lambda x: x[0])
-    week_labels = [k for k, _ in weeks_sorted]
-    week_values = [round(v, 2) for _, v in weeks_sorted]
-
-    # Ganancia por usuario del sistema
-    profit_by_user = defaultdict(float)
-    for s in sales:
-        if s.user:
-            profit_by_user[s.user.username] += float(s.profit or 0)
-
-    user_items = sorted(profit_by_user.items(), key=lambda x: x[1], reverse=True)
-    user_labels = [u for u, _ in user_items]
-    user_values = [round(v, 2) for _, v in user_items]
-
-    # -------------------------------------------------
-    # ALERTAS AUTOMÁTICAS (a nivel global, no solo filtrado)
-    # -------------------------------------------------
-    alerts = []
-
-    today = datetime.date.today()
-
-    # 1) Ventas pendientes con más de 1 día de antigüedad (manejo robusto de fecha)
-    pending_sales = Sale.query.filter(Sale.status == "Pendiente").all()
-    old_pending = []
-    for s in pending_sales:
-        d = s.date
-        if not d:
-            continue
-        if isinstance(d, datetime.datetime):
-            d = d.date()
-        if isinstance(d, str):
-            try:
-                d = datetime.date.fromisoformat(d)
-            except Exception:
-                continue
-        if d <= today - datetime.timedelta(days=1):
-            old_pending.append(s)
-
-    if old_pending:
-        total_pend_antiguo = sum(float(s.total or 0) for s in old_pending)
-        alerts.append({
-            "level": "warning",
-            "title": "Ventas pendientes con antigüedad",
-            "message": (
-                f"Tienes {len(old_pending)} ventas pendientes con más de 1 día "
-                f"por un monto total aproximado de ₡{total_pend_antiguo:,.2f}. "
-                "Revisa los cobros para no perder liquidez."
-            ),
-        })
-
-    # 2) Utilidad semanal por debajo de un umbral objetivo
-    seven_days_ago = today - datetime.timedelta(days=7)
-    try:
-        weekly_sales = Sale.query.filter(
-            Sale.date >= seven_days_ago,
-            Sale.date <= today
-        ).all()
-        weekly_profit = sum(float(s.profit or 0) for s in weekly_sales)
-    except Exception:
-        weekly_profit = 0.0
-
-    # Umbral configurable vía variable de entorno (opcional)
-    min_weekly_profit_str = os.environ.get("ALERT_WEEKLY_PROFIT_MIN", "").strip()
-    try:
-        min_weekly_profit = float(min_weekly_profit_str) if min_weekly_profit_str else 0.0
-    except ValueError:
-        min_weekly_profit = 0.0
-
-    if min_weekly_profit > 0 and weekly_profit < min_weekly_profit:
-        alerts.append({
-            "level": "danger",
-            "title": "Utilidad semanal por debajo del objetivo",
-            "message": (
-                f"La utilidad de los últimos 7 días es de ₡{weekly_profit:,.2f}, "
-                f"por debajo del objetivo mínimo de ₡{min_weekly_profit:,.2f}. "
-                "Considera ajustar precios, volumen de ventas o estructura de gastos."
-            ),
-        })
-
-    return render_template(
-        "dashboard.html",
-        top_labels=top_labels,
-        top_values=top_values,
-        week_labels=week_labels,
-        week_values=week_values,
-        user_labels=user_labels,
-        user_values=user_values,
-        total_ganancia=total_ganancia,
-        date_from=date_from,
-        date_to=date_to,
-        # métricas nuevas:
-        total_ventas_period=total_ventas_period,
-        total_monto_period=total_monto_period,
-        avg_ticket=avg_ticket,
-        avg_profit_per_sale=avg_profit_per_sale,
-        avg_daily_profit=avg_daily_profit,
-        # alertas:
-        alerts=alerts,
-        weekly_profit=weekly_profit,
-        min_weekly_profit=min_weekly_profit,
-    )
-
-
-# ---------------------------------------------------------
-# MAIN
-# ---------------------------------------------------------
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    main()
