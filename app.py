@@ -762,7 +762,7 @@ def flujo_export():
 
 
 # ---------------------------------------------------------
-# DASHBOARD (MEJORADO + ALERTAS)
+# DASHBOARD (ROBUSTO + ALERTAS)
 # ---------------------------------------------------------
 
 @app.route("/dashboard")
@@ -817,13 +817,21 @@ def dashboard():
     avg_ticket = total_monto_period / total_ventas_period if total_ventas_period > 0 else 0.0
     avg_profit_per_sale = total_ganancia / total_ventas_period if total_ventas_period > 0 else 0.0
 
+    # Promedio diario de utilidad (manejo robusto de fecha)
     profit_by_day = defaultdict(float)
     for s in sales:
-        if s.date:
-            d = s.date
-            if isinstance(d, datetime.datetime):
-                d = d.date()
-            profit_by_day[d] += float(s.profit or 0)
+        d = s.date
+        if not d:
+            continue
+        if isinstance(d, datetime.datetime):
+            d = d.date()
+        if isinstance(d, str):
+            try:
+                d = datetime.date.fromisoformat(d)
+            except Exception:
+                continue
+        profit_by_day[d] += float(s.profit or 0)
+
     num_dias = len(profit_by_day)
     avg_daily_profit = total_ganancia / num_dias if num_dias > 0 else 0.0
 
@@ -837,15 +845,23 @@ def dashboard():
     top_labels = [name for name, _ in top_items]
     top_values = [round(value, 2) for _, value in top_items]
 
-    # Ganancias por semana (ISO week), filtradas por fecha
+    # Ganancias por semana (ISO week) con manejo robusto de fechas
     profit_by_week = defaultdict(float)
     for s in sales:
-        if not s.date:
-            continue
         d = s.date
+        if not d:
+            continue
         if isinstance(d, datetime.datetime):
             d = d.date()
-        y, w, _ = d.isocalendar()
+        if isinstance(d, str):
+            try:
+                d = datetime.date.fromisoformat(d)
+            except Exception:
+                continue
+        try:
+            y, w, _ = d.isocalendar()
+        except Exception:
+            continue
         key = f"{y}-W{w:02d}"
         profit_by_week[key] += float(s.profit or 0)
 
@@ -870,12 +886,23 @@ def dashboard():
 
     today = datetime.date.today()
 
-    # 1) Ventas pendientes con más de 1 día de antigüedad
+    # 1) Ventas pendientes con más de 1 día de antigüedad (manejo robusto de fecha)
     pending_sales = Sale.query.filter(Sale.status == "Pendiente").all()
-    old_pending = [
-        s for s in pending_sales
-        if s.date and s.date <= today - datetime.timedelta(days=1)
-    ]
+    old_pending = []
+    for s in pending_sales:
+        d = s.date
+        if not d:
+            continue
+        if isinstance(d, datetime.datetime):
+            d = d.date()
+        if isinstance(d, str):
+            try:
+                d = datetime.date.fromisoformat(d)
+            except Exception:
+                continue
+        if d <= today - datetime.timedelta(days=1):
+            old_pending.append(s)
+
     if old_pending:
         total_pend_antiguo = sum(float(s.total or 0) for s in old_pending)
         alerts.append({
@@ -890,14 +917,16 @@ def dashboard():
 
     # 2) Utilidad semanal por debajo de un umbral objetivo
     seven_days_ago = today - datetime.timedelta(days=7)
-    weekly_sales = Sale.query.filter(
-        Sale.date >= seven_days_ago,
-        Sale.date <= today
-    ).all()
-    weekly_profit = sum(float(s.profit or 0) for s in weekly_sales)
+    try:
+        weekly_sales = Sale.query.filter(
+            Sale.date >= seven_days_ago,
+            Sale.date <= today
+        ).all()
+        weekly_profit = sum(float(s.profit or 0) for s in weekly_sales)
+    except Exception:
+        weekly_profit = 0.0
 
-    # Umbral configurable vía variable de entorno, por ejemplo 50000, 100000, etc.
-    # Si no se define, no generamos alerta de utilidad semanal.
+    # Umbral configurable vía variable de entorno (opcional)
     min_weekly_profit_str = os.environ.get("ALERT_WEEKLY_PROFIT_MIN", "").strip()
     try:
         min_weekly_profit = float(min_weekly_profit_str) if min_weekly_profit_str else 0.0
