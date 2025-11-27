@@ -1,32 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Dashboard - Control de Ventas{% endblock %}
 
-{% block extra_head %}
-{{ super() }}
-<style>
-    .chart-container {
-        max-width: 360px;
-        margin: 0 auto;
-    }
-    .chart-container canvas {
-        max-width: 100%;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
 
 <div class="row">
     <div class="col-12">
         <div class="card p-4 mb-4">
-            <h2 class="mb-3 text-accent">Dashboard de ganancias</h2>
+            <h2 class="mb-3 text-accent">Dashboard de rendimiento</h2>
             <p class="text-secondary-custom text-center mb-3">
-                Usa los filtros de fecha o los botones rápidos para analizar tu rendimiento
-                en distintos periodos. Los gráficos tipo dona muestran la proporción de la
-                <b>ganancia por producto</b> y la <b>ganancia por semana</b>.
+                Visualiza tus resultados por producto, por semana y por usuario del sistema.
+                Usa los filtros de fecha o los presets rápidos para analizar diferentes periodos.
             </p>
 
-            <!-- FILTROS DE FECHA -->
+            <!-- FILTROS -->
             <form method="get" action="{{ url_for('dashboard') }}" class="mb-3">
                 <div class="row g-3 align-items-end">
                     <div class="col-md-3 col-6">
@@ -48,91 +34,108 @@
                         >
                     </div>
                     <div class="col-md-3 col-12">
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="bi bi-funnel me-1"></i> Aplicar filtros
-                        </button>
+                        <label class="form-label text-secondary-custom">Presets rápidos</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" name="preset" value="week" class="btn btn-outline-light btn-sm flex-grow-1">
+                                Última semana
+                            </button>
+                            <button type="submit" name="preset" value="4weeks" class="btn btn-outline-light btn-sm flex-grow-1">
+                                Últimas 4 semanas
+                            </button>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mt-2">
+                            <button type="submit" name="preset" value="month" class="btn btn-outline-light btn-sm flex-grow-1">
+                                Este mes
+                            </button>
+                            <button type="submit" name="preset" value="year" class="btn btn-outline-light btn-sm flex-grow-1">
+                                Este año
+                            </button>
+                        </div>
                     </div>
                     <div class="col-md-3 col-12">
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light w-100">
-                            <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar filtros
-                        </a>
+                        <label class="form-label text-secondary-custom">&nbsp;</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" class="btn btn-primary flex-grow-1">
+                                <i class="bi bi-funnel me-1"></i> Aplicar
+                            </button>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light flex-grow-1">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar
+                            </a>
+                        </div>
                     </div>
                 </div>
             </form>
 
-            <!-- BOTONES RÁPIDOS DE FILTRO -->
-            <div class="row g-2">
-                <div class="col-6 col-md-3">
-                    <a href="{{ url_for('dashboard', preset='week') }}" class="btn btn-outline-light w-100">
-                        Últimos 7 días
-                    </a>
+            <!-- RESUMEN -->
+            <div class="row text-center mt-3">
+                <div class="col-md-4 col-12 mb-2">
+                    <p class="text-secondary-custom">
+                        Ganancia total (₡)<br>
+                        <span class="text-accent">{{ "%.2f"|format(total_ganancia) }}</span>
+                    </p>
                 </div>
-                <div class="col-6 col-md-3">
-                    <a href="{{ url_for('dashboard', preset='4weeks') }}" class="btn btn-outline-light w-100">
-                        Últimas 4 semanas
-                    </a>
+                <div class="col-md-4 col-6 mb-2">
+                    <p class="text-secondary-custom">
+                        Rango desde<br>
+                        <span class="text-accent">{{ date_from or "Sin límite" }}</span>
+                    </p>
                 </div>
-                <div class="col-6 col-md-3">
-                    <a href="{{ url_for('dashboard', preset='month') }}" class="btn btn-outline-light w-100">
-                        Este mes
-                    </a>
-                </div>
-                <div class="col-6 col-md-3">
-                    <a href="{{ url_for('dashboard', preset='year') }}" class="btn btn-outline-light w-100">
-                        Este año
-                    </a>
+                <div class="col-md-4 col-6 mb-2">
+                    <p class="text-secondary-custom">
+                        Rango hasta<br>
+                        <span class="text-accent">{{ date_to or "Sin límite" }}</span>
+                    </p>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- TOP PRODUCTOS POR GANANCIA -->
+<!-- GRÁFICOS -->
 <div class="row">
-    <div class="col-12">
-        <div class="card p-4 mb-4">
-            <h3 class="mb-3 text-accent">Top productos por ganancia</h3>
-            <p class="text-secondary-custom mb-3">
-                Muestra los productos con mayor ganancia total en el periodo filtrado.
-                Cada porción de la dona representa la participación de un producto en la
-                ganancia total.
-            </p>
-            {% if top_labels and top_values %}
-                <div class="chart-container">
-                    <canvas id="topProductsChart" height="180"></canvas>
+    <!-- Top productos (dona) -->
+    <div class="col-lg-4 col-md-6 col-12 mb-4">
+        <div class="card p-3 h-100 d-flex flex-column justify-content-between">
+            <h4 class="mb-3 text-accent text-center">Top productos por ganancia</h4>
+            <div class="d-flex justify-content-center">
+                <div style="max-width: 320px; width: 100%;">
+                    <canvas id="chartTopProductos"></canvas>
                 </div>
-            {% else %}
-                <p class="text-secondary-custom text-center mb-0">
-                    No hay datos de ventas en el rango seleccionado para generar este gráfico.
-                </p>
-            {% endif %}
+            </div>
+            <p class="text-secondary-custom text-center mt-3 mb-0">
+                Muestra los productos con mayor aporte a la ganancia total
+                en el rango seleccionado.
+            </p>
         </div>
     </div>
-</div>
 
-<!-- GANANCIAS SEMANALES -->
-<div class="row">
-    <div class="col-12">
-        <div class="card p-4">
-            <h3 class="mb-3 text-accent">Distribución de ganancias semanales</h3>
-            <p class="text-secondary-custom mb-3">
-                Cada porción de la dona representa la <b>participación de una semana</b> en la
-                ganancia total del periodo filtrado. Útil para ver en qué semanas se concentró
-                la mayor parte de tus resultados.
-            </p>
-            {% if week_labels and week_values %}
-                <div class="chart-container">
-                    <canvas id="weeklyProfitChart" height="180"></canvas>
+    <!-- Ganancia semanal -->
+    <div class="col-lg-4 col-md-6 col-12 mb-4">
+        <div class="card p-3 h-100 d-flex flex-column justify-content-between">
+            <h4 class="mb-3 text-accent text-center">Distribución de ganancias por semana</h4>
+            <div class="d-flex justify-content-center">
+                <div style="max-width: 380px; width: 100%;">
+                    <canvas id="chartSemanas"></canvas>
                 </div>
-            {% else %}
-                <p class="text-secondary-custom text-center mb-0">
-                    No hay datos de ganancias semanales en el rango seleccionado para generar este gráfico.
-                </p>
-            {% endif %}
+            </div>
+            <p class="text-secondary-custom text-center mt-3 mb-0">
+                Visualiza cómo evoluciona tu ganancia semana a semana.
+            </p>
+        </div>
+    </div>
 
-            <p class="text-secondary-custom mt-3 mb-0 text-center">
-                Ganancia total acumulada en el periodo:
-                <span class="text-accent">{{ "%.2f"|format(total_ganancia) }} ₡</span>.
+    <!-- Ganancia por usuario (dona) -->
+    <div class="col-lg-4 col-md-12 col-12 mb-4">
+        <div class="card p-3 h-100 d-flex flex-column justify-content-between">
+            <h4 class="mb-3 text-accent text-center">Ganancia por usuario</h4>
+            <div class="d-flex justify-content-center">
+                <div style="max-width: 320px; width: 100%;">
+                    <canvas id="chartUsuarios"></canvas>
+                </div>
+            </div>
+            <p class="text-secondary-custom text-center mt-3 mb-0">
+                Compara el aporte de cada usuario del sistema a la ganancia
+                total en el periodo seleccionado.
             </p>
         </div>
     </div>
@@ -148,83 +151,83 @@ document.addEventListener("DOMContentLoaded", function() {
     const topValues = {{ top_values|tojson }};
     const weekLabels = {{ week_labels|tojson }};
     const weekValues = {{ week_values|tojson }};
+    const userLabels = {{ user_labels|tojson }};
+    const userValues = {{ user_values|tojson }};
 
-    // Paleta de colores (modo oscuro)
-    const palette = [
-        'rgba(0, 229, 229, 0.7)',
-        'rgba(0, 140, 255, 0.7)',
-        'rgba(255, 99, 132, 0.7)',
-        'rgba(255, 159, 64, 0.7)',
-        'rgba(75, 192, 192, 0.7)',
-        'rgba(153, 102, 255, 0.7)',
-        'rgba(255, 205, 86, 0.7)'
-    ];
-    const paletteBorder = [
-        '#00e5e5',
-        '#008cff',
-        '#ff6384',
-        '#ff9f40',
-        '#4bc0c0',
-        '#9966ff',
-        '#ffcd56'
-    ];
-
-    function buildColors(length) {
-        const bg = [];
-        const border = [];
-        for (let i = 0; i < length; i++) {
-            bg.push(palette[i % palette.length]);
-            border.push(paletteBorder[i % paletteBorder.length]);
-        }
-        return { bg, border };
-    }
-
-    // Top productos por ganancia (dona)
-    const ctxTop = document.getElementById('topProductsChart');
+    // Gráfico dona: top productos
+    const ctxTop = document.getElementById('chartTopProductos');
     if (ctxTop && topLabels.length > 0) {
-        const colorsTop = buildColors(topLabels.length);
         new Chart(ctxTop, {
             type: 'doughnut',
             data: {
                 labels: topLabels,
                 datasets: [{
-                    data: topValues,
-                    backgroundColor: colorsTop.bg,
-                    borderColor: colorsTop.border,
-                    borderWidth: 1
+                    data: topValues
                 }]
             },
             options: {
-                responsive: true,
                 plugins: {
                     legend: {
-                        labels: { color: '#ffffff' }
+                        labels: {
+                            color: '#ffffff'
+                        }
                     }
                 }
             }
         });
     }
 
-    // Distribución de ganancias semanales (dona)
-    const ctxWeek = document.getElementById('weeklyProfitChart');
-    if (ctxWeek && weekLabels.length > 0) {
-        const colorsWeek = buildColors(weekLabels.length);
-        new Chart(ctxWeek, {
-            type: 'doughnut',
+    // Gráfico barras: ganancias por semana
+    const ctxSemanas = document.getElementById('chartSemanas');
+    if (ctxSemanas && weekLabels.length > 0) {
+        new Chart(ctxSemanas, {
+            type: 'bar',
             data: {
                 labels: weekLabels,
                 datasets: [{
-                    data: weekValues,
-                    backgroundColor: colorsWeek.bg,
-                    borderColor: colorsWeek.border,
-                    borderWidth: 1
+                    label: 'Ganancia (₡)',
+                    data: weekValues
                 }]
             },
             options: {
-                responsive: true,
+                scales: {
+                    x: {
+                        ticks: { color: '#ffffff' },
+                        grid: { color: '#333333' }
+                    },
+                    y: {
+                        ticks: { color: '#ffffff' },
+                        grid: { color: '#333333' }
+                    }
+                },
                 plugins: {
                     legend: {
-                        labels: { color: '#ffffff' }
+                        labels: {
+                            color: '#ffffff'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Gráfico dona: ganancia por usuario
+    const ctxUsuarios = document.getElementById('chartUsuarios');
+    if (ctxUsuarios && userLabels.length > 0) {
+        new Chart(ctxUsuarios, {
+            type: 'doughnut',
+            data: {
+                labels: userLabels,
+                datasets: [{
+                    data: userValues
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#ffffff'
+                        }
                     }
                 }
             }
