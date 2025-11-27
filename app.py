@@ -39,31 +39,30 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 db = SQLAlchemy(app)
 
-# Margen mínimo de utilidad para la calculadora (7 %)
-MIN_MARGIN_PERCENT = 7.0
-
-
 # ---------------------------------------------------------
-# FILTROS JINJA PERSONALIZADOS
+# FILTROS JINJA
 # ---------------------------------------------------------
 
 @app.template_filter("format_num")
-def format_num_filter(value):
+def format_num(value):
     """
-    Formatea valores numéricos con 2 decimales y separador de miles.
-    Ejemplo: 12345.6 -> '12.345,60'
+    Formato numérico estilo es-CR:
+    12345.6 -> '12.345,60'
     """
     try:
         value = float(value or 0)
     except (TypeError, ValueError):
         return "0,00"
 
-    # 12,345.60 (formato US)
+    # Formato base en inglés: 12,345.67
     formatted = f"{value:,.2f}"
-
-    # Convertimos a 12.345,60 (formato "latino")
+    # Cambiar a miles '.' y decimales ','
     formatted = formatted.replace(",", "X").replace(".", ",").replace("X", ".")
     return formatted
+
+
+# Margen mínimo de utilidad para la calculadora (7 %)
+MIN_MARGIN_PERCENT = 7.0
 
 
 # ---------------------------------------------------------
@@ -207,7 +206,7 @@ def login():
 
 @app.route("/logout")
 def logout():
-    session.clear()
+    session.clear    ()
     return redirect(url_for("login"))
 
 
@@ -405,19 +404,7 @@ def productos():
             except Exception as e:
                 error = f"Error al guardar el producto: {e}"
 
-    # Cargar productos de catálogo
     products = Product.query.order_by(Product.name).all()
-
-    # Mapa para JS (por si productos.html usa product_mapping | tojson)
-    product_mapping = {
-        p.name: {
-            "cost": float(p.cost or 0),
-            "price": float(p.price or 0),
-            "margin": float(p.margin_percent or 0),
-        }
-        for p in products
-    }
-
     return render_template(
         "productos.html",
         products=products,
@@ -432,7 +419,6 @@ def productos():
         profit_unit=profit_unit,
         profit_total=profit_total,
         margin_used=margin_used,
-        product_mapping=product_mapping,
     )
 
 
@@ -946,7 +932,7 @@ def dashboard():
             "title": "Ventas pendientes con antigüedad",
             "message": (
                 f"Tienes {len(old_pending)} ventas pendientes con más de 1 día "
-                f"por un monto total aproximado de ₡{total_pend_antiguo:,.2f}. "
+                f"por un monto total aproximado de ₡{format_num(total_pend_antiguo)}. "
                 "Revisa los cobros para no perder liquidez."
             ),
         })
@@ -974,8 +960,8 @@ def dashboard():
             "level": "danger",
             "title": "Utilidad semanal por debajo del objetivo",
             "message": (
-                f"La utilidad de los últimos 7 días es de ₡{weekly_profit:,.2f}, "
-                f"por debajo del objetivo mínimo de ₡{min_weekly_profit:,.2f}. "
+                f"La utilidad de los últimos 7 días es de ₡{format_num(weekly_profit)}, "
+                f"por debajo del objetivo mínimo de ₡{format_num(min_weekly_profit)}. "
                 "Considera ajustar precios, volumen de ventas o estructura de gastos."
             ),
         })
@@ -1009,14 +995,4 @@ def dashboard():
 # ---------------------------------------------------------
 
 if __name__ == "__main__":
-    # Control de modo debug por variable de entorno
-    debug = os.environ.get("FLASK_DEBUG", "1") == "1"
-
-    # Render (u otros proveedores) pueden asignar el puerto por variable de entorno
-    port = int(os.environ.get("PORT", 5000))
-
-    app.run(
-        host="0.0.0.0",
-        port=port,
-        debug=debug,
-    )
+    app.run(debug=True)
