@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Calculadora - Control de Ventas{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <div class="col-12">
+        <div class="card p-4 mb-4">
+            <h2 class="mb-3 text-accent">Calculadora de precios y utilidad</h2>
+            <p class="text-secondary-custom text-center mb-3">
+                Ingresa el <b>costo</b>, el <b>margen deseado</b> (mínimo {{ "%.1f"|format(min_margin) }}%)
+                y la <b>cantidad</b>. La calculadora te sugerirá un precio de venta, la utilidad por unidad
+                y la utilidad total. Opcionalmente puedes <b>guardar o actualizar el producto</b> en el catálogo.
+            </p>
+
+            {% if error %}
+                <div class="alert alert-danger py-2">{{ error }}</div>
+            {% endif %}
+            {% if success %}
+                <div class="alert alert-success py-2">{{ success }}</div>
+            {% endif %}
+
+            <!-- Selector para cargar un producto existente -->
+            <h5 class="text-accent text-center mb-3">Cargar producto existente (opcional)</h5>
+            <div class="row g-3 mb-3 align-items-end">
+                <div class="col-md-6 col-12">
+                    <label class="form-label text-secondary-custom">Producto del catálogo</label>
+                    <select id="product_loader" class="form-select text-center">
+                        <option value="">-- Seleccionar --</option>
+                        {% for p in products %}
+                            <option
+                                value="{{ p.name }}"
+                                data-cost="{{ "%.2f"|format(p.cost) }}"
+                                data-price="{{ "%.2f"|format(p.price) }}"
+                                data-margin="{{ "%.2f"|format(p.margin_percent) }}"
+                            >
+                                {{ p.name }} (Utilidad: {{ "%.2f"|format(p.margin_percent) }}%)
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6 col-12">
+                    <p class="text-secondary-custom mb-0">
+                        Al seleccionar un producto se cargarán su nombre, costo y margen estimado en la calculadora.
+                        Puedes ajustarlos antes de recalcular y guardar.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Formulario principal de la calculadora -->
+            <h5 class="text-accent text-center mb-3">Calcular precio y utilidad</h5>
+            <form method="post" action="{{ url_for('calculadora') }}">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Nombre de producto</label>
+                        <input
+                            type="text"
+                            name="product_name"
+                            id="product_name"
+                            class="form-control text-center"
+                            value="{{ product_name_input }}"
+                            placeholder="Opcional, pero necesario para guardar"
+                        >
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Costo por unidad</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="cost"
+                            id="calc_cost"
+                            class="form-control text-end"
+                            value="{{ cost_input }}"
+                            placeholder="0.00"
+                        >
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Margen deseado (%)</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="margin"
+                            id="calc_margin"
+                            class="form-control text-end"
+                            value="{{ margin_input }}"
+                        >
+                    </div>
+                    <div class="col-md-2 col-12">
+                        <label class="form-label text-secondary-custom">Cantidad</label>
+                        <input
+                            type="number"
+                            name="quantity"
+                            id="calc_quantity"
+                            class="form-control text-end"
+                            value="{{ quantity_input }}"
+                            min="1"
+                        >
+                    </div>
+                    <div class="col-md-1 col-12 text-center">
+                        <button type="submit" class="btn btn-primary w-100">
+                            Calcular
+                        </button>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-3 align-items-center">
+                    <div class="col-md-4 col-12">
+                        <div class="form-check">
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                id="save_to_catalog"
+                                name="save_to_catalog"
+                            >
+                            <label class="form-check-label text-secondary-custom" for="save_to_catalog">
+                                Guardar / actualizar en catálogo al calcular
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-8 col-12">
+                        <p class="text-secondary-custom mb-0">
+                            Si marcas esta opción, al calcular se actualizará o creará el producto en el catálogo
+                            con el costo y el precio sugerido. El margen mínimo es {{ "%.1f"|format(min_margin) }}%.
+                        </p>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- RESULTADOS -->
+<div class="row">
+    <div class="col-12">
+        <div class="card p-4">
+            <h5 class="mb-3 text-accent">Resultados de la simulación</h5>
+            {% if price_result is not none %}
+                <div class="row text-center mb-3">
+                    <div class="col-md-3 col-6 mb-2">
+                        <div class="text-secondary-custom">Precio sugerido (₡)</div>
+                        <div class="text-accent">{{ "%.2f"|format(price_result) }}</div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-2">
+                        <div class="text-secondary-custom">Utilidad por unidad (₡)</div>
+                        <div class="text-accent">{{ "%.2f"|format(profit_unit) }}</div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-2">
+                        <div class="text-secondary-custom">Utilidad total (₡)</div>
+                        <div class="text-accent">{{ "%.2f"|format(profit_total) }}</div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-2">
+                        <div class="text-secondary-custom">Margen aplicado (%)</div>
+                        <div class="text-accent">{{ "%.2f"|format(margin_used) }}</div>
+                    </div>
+                </div>
+                <p class="text-secondary-custom text-center mb-0">
+                    Puedes usar este precio como referencia para mantener al menos el
+                    <b>{{ "%.1f"|format(min_margin) }}%</b> de utilidad sobre el costo ingresado.
+                    Si marcaste la casilla de guardar, el producto ya quedó reflejado en el catálogo
+                    y disponible en la pestaña <b>Ventas</b>.
+                </p>
+            {% else %}
+                <p class="text-secondary-custom text-center mb-0">
+                    Ingresa los datos en la calculadora y pulsa <b>Calcular</b> para ver el precio sugerido
+                    y la utilidad. Esta herramienta es ideal para revisar rápidamente si tus precios respetan
+                    tu margen mínimo.
+                </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const loader = document.getElementById("product_loader");
+    const nameInput = document.getElementById("product_name");
+    const costInput = document.getElementById("calc_cost");
+    const marginInput = document.getElementById("calc_margin");
+
+    if (loader && nameInput && costInput && marginInput) {
+        loader.addEventListener("change", function() {
+            const opt = loader.options[loader.selectedIndex];
+            const name = opt.value;
+            const cost = opt.getAttribute("data-cost");
+            const margin = opt.getAttribute("data-margin");
+
+            if (name) {
+                nameInput.value = name;
+            }
+            if (cost) {
+                costInput.value = cost;
+            }
+            if (margin) {
+                marginInput.value = margin;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

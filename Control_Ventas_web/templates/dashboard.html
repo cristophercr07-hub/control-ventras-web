@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Control de Ventas{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+    .chart-container {
+        max-width: 360px;
+        margin: 0 auto;
+    }
+    .chart-container canvas {
+        max-width: 100%;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <div class="col-12">
+        <div class="card p-4 mb-4">
+            <h2 class="mb-3 text-accent">Dashboard de ganancias</h2>
+            <p class="text-secondary-custom text-center mb-3">
+                Usa los filtros de fecha o los botones rápidos para analizar tu rendimiento
+                en distintos periodos. Los gráficos tipo dona muestran la proporción de la
+                <b>ganancia por producto</b> y la <b>ganancia por semana</b>.
+            </p>
+
+            <!-- FILTROS DE FECHA -->
+            <form method="get" action="{{ url_for('dashboard') }}" class="mb-3">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3 col-6">
+                        <label class="form-label text-secondary-custom">Desde</label>
+                        <input
+                            type="date"
+                            name="date_from"
+                            class="form-control text-center"
+                            value="{{ date_from or '' }}"
+                        >
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="form-label text-secondary-custom">Hasta</label>
+                        <input
+                            type="date"
+                            name="date_to"
+                            class="form-control text-center"
+                            value="{{ date_to or '' }}"
+                        >
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-funnel me-1"></i> Aplicar filtros
+                        </button>
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light w-100">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar filtros
+                        </a>
+                    </div>
+                </div>
+            </form>
+
+            <!-- BOTONES RÁPIDOS DE FILTRO -->
+            <div class="row g-2">
+                <div class="col-6 col-md-3">
+                    <a href="{{ url_for('dashboard', preset='week') }}" class="btn btn-outline-light w-100">
+                        Últimos 7 días
+                    </a>
+                </div>
+                <div class="col-6 col-md-3">
+                    <a href="{{ url_for('dashboard', preset='4weeks') }}" class="btn btn-outline-light w-100">
+                        Últimas 4 semanas
+                    </a>
+                </div>
+                <div class="col-6 col-md-3">
+                    <a href="{{ url_for('dashboard', preset='month') }}" class="btn btn-outline-light w-100">
+                        Este mes
+                    </a>
+                </div>
+                <div class="col-6 col-md-3">
+                    <a href="{{ url_for('dashboard', preset='year') }}" class="btn btn-outline-light w-100">
+                        Este año
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TOP PRODUCTOS POR GANANCIA -->
+<div class="row">
+    <div class="col-12">
+        <div class="card p-4 mb-4">
+            <h3 class="mb-3 text-accent">Top productos por ganancia</h3>
+            <p class="text-secondary-custom mb-3">
+                Muestra los productos con mayor ganancia total en el periodo filtrado.
+                Cada porción de la dona representa la participación de un producto en la
+                ganancia total.
+            </p>
+            {% if top_labels and top_values %}
+                <div class="chart-container">
+                    <canvas id="topProductsChart" height="180"></canvas>
+                </div>
+            {% else %}
+                <p class="text-secondary-custom text-center mb-0">
+                    No hay datos de ventas en el rango seleccionado para generar este gráfico.
+                </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- GANANCIAS SEMANALES -->
+<div class="row">
+    <div class="col-12">
+        <div class="card p-4">
+            <h3 class="mb-3 text-accent">Distribución de ganancias semanales</h3>
+            <p class="text-secondary-custom mb-3">
+                Cada porción de la dona representa la <b>participación de una semana</b> en la
+                ganancia total del periodo filtrado. Útil para ver en qué semanas se concentró
+                la mayor parte de tus resultados.
+            </p>
+            {% if week_labels and week_values %}
+                <div class="chart-container">
+                    <canvas id="weeklyProfitChart" height="180"></canvas>
+                </div>
+            {% else %}
+                <p class="text-secondary-custom text-center mb-0">
+                    No hay datos de ganancias semanales en el rango seleccionado para generar este gráfico.
+                </p>
+            {% endif %}
+
+            <p class="text-secondary-custom mt-3 mb-0 text-center">
+                Ganancia total acumulada en el periodo:
+                <span class="text-accent">{{ "%.2f"|format(total_ganancia) }} ₡</span>.
+            </p>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const topLabels = {{ top_labels|tojson }};
+    const topValues = {{ top_values|tojson }};
+    const weekLabels = {{ week_labels|tojson }};
+    const weekValues = {{ week_values|tojson }};
+
+    // Paleta de colores (modo oscuro)
+    const palette = [
+        'rgba(0, 229, 229, 0.7)',
+        'rgba(0, 140, 255, 0.7)',
+        'rgba(255, 99, 132, 0.7)',
+        'rgba(255, 159, 64, 0.7)',
+        'rgba(75, 192, 192, 0.7)',
+        'rgba(153, 102, 255, 0.7)',
+        'rgba(255, 205, 86, 0.7)'
+    ];
+    const paletteBorder = [
+        '#00e5e5',
+        '#008cff',
+        '#ff6384',
+        '#ff9f40',
+        '#4bc0c0',
+        '#9966ff',
+        '#ffcd56'
+    ];
+
+    function buildColors(length) {
+        const bg = [];
+        const border = [];
+        for (let i = 0; i < length; i++) {
+            bg.push(palette[i % palette.length]);
+            border.push(paletteBorder[i % paletteBorder.length]);
+        }
+        return { bg, border };
+    }
+
+    // Top productos por ganancia (dona)
+    const ctxTop = document.getElementById('topProductsChart');
+    if (ctxTop && topLabels.length > 0) {
+        const colorsTop = buildColors(topLabels.length);
+        new Chart(ctxTop, {
+            type: 'doughnut',
+            data: {
+                labels: topLabels,
+                datasets: [{
+                    data: topValues,
+                    backgroundColor: colorsTop.bg,
+                    borderColor: colorsTop.border,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        labels: { color: '#ffffff' }
+                    }
+                }
+            }
+        });
+    }
+
+    // Distribución de ganancias semanales (dona)
+    const ctxWeek = document.getElementById('weeklyProfitChart');
+    if (ctxWeek && weekLabels.length > 0) {
+        const colorsWeek = buildColors(weekLabels.length);
+        new Chart(ctxWeek, {
+            type: 'doughnut',
+            data: {
+                labels: weekLabels,
+                datasets: [{
+                    data: weekValues,
+                    backgroundColor: colorsWeek.bg,
+                    borderColor: colorsWeek.border,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        labels: { color: '#ffffff' }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
