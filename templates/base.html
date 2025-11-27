@@ -9,7 +9,7 @@
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         rel="stylesheet"
-        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlypNly2bRjXh0JMhjY6hW+ALEwIH"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
         crossorigin="anonymous"
     >
     <!-- Bootstrap Icons -->
@@ -20,14 +20,15 @@
 
     <style>
         :root {
+            /* Paleta Matrix oscura ORIGINAL */
             --bg-main: #020a02;
             --bg-card: #050b06;
             --bg-card-soft: #07100a;
             --border-soft: #1b3b24;
             --text-main: #e8f5e9;
-            --text-secondary: #9fb6a4;
-            --accent: #a5ffbf;
-            --accent-soft: rgba(165, 255, 191, 0.20);
+            --text-secondary: #9ccc9c;
+            --accent: #00ff41;
+            --accent-soft: rgba(0, 255, 65, 0.20);
         }
 
         html, body {
@@ -42,6 +43,7 @@
             overflow-x: hidden;
         }
 
+        /* Canvas de fondo tipo Matrix */
         #matrixCanvas {
             position: fixed;
             inset: 0;
@@ -71,24 +73,6 @@
         .nav-link {
             color: var(--text-secondary) !important;
             font-size: 0.9rem;
-            position: relative;
-            transition: color 0.15s ease;
-        }
-
-        .nav-link::after {
-            content: "";
-            position: absolute;
-            left: 0;
-            bottom: -4px;
-            width: 0;
-            height: 2px;
-            background: var(--accent);
-            transition: width 0.18s ease;
-        }
-
-        .nav-link:hover::after,
-        .nav-link.active::after {
-            width: 100%;
         }
 
         .nav-link:hover,
@@ -143,14 +127,14 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #a5ffbf, #6fe29a);
+            background: linear-gradient(135deg, #00ff41, #00c932);
             border: none;
             color: #000000;
             font-weight: 600;
         }
 
         .btn-primary:hover {
-            background: linear-gradient(135deg, #c4ffd2, #89ffb2);
+            background: linear-gradient(135deg, #66ff88, #00e648);
             color: #000000;
         }
 
@@ -173,8 +157,8 @@
 
         .table-dark-custom thead th {
             border-bottom: 1px solid var(--border-soft);
-            /* Verde oscuro para los títulos de columna */
-            color: #4caf50;
+            /* SOLO cambiamos el color de los títulos de la tabla */
+            color: #4caf50; /* verde oscuro */
             font-size: 0.85rem;
             text-align: center;
             font-weight: 600;
@@ -214,10 +198,11 @@
         }
 
         .matrix-border {
-            border: 1px solid rgba(165, 255, 191, 0.35);
-            box-shadow: 0 0 10px rgba(165, 255, 191, 0.25);
+            border: 1px solid rgba(0, 255, 65, 0.35);
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.25);
         }
 
+        /* Opcional: para futuros números destacados */
         .highlight-number {
             font-size: 1.4rem;
             font-weight: 700;
@@ -226,46 +211,7 @@
 
         @media (max-width: 576px) {
             .navbar-brand {
-                font-size: 0.95rem;
-            }
-
-            .card {
-                box-shadow: 0 0 12px rgba(0, 0, 0, 0.7);
-                border-radius: 0.6rem;
-            }
-
-            h2, .h2 {
-                font-size: 1.3rem;
-            }
-
-            .field-box {
-                padding: 0.6rem;
-            }
-
-            .table-sm td,
-            .table-sm th {
-                padding: 0.25rem 0.35rem;
-                font-size: 0.75rem;
-            }
-
-            .form-control,
-            .form-select {
-                padding-top: 0.45rem;
-                padding-bottom: 0.45rem;
-                font-size: 0.85rem;
-            }
-
-            .small-label {
-                font-size: 0.7rem;
-            }
-
-            .highlight-number {
-                font-size: 1.6rem;
-            }
-
-            :root {
-                --accent: #b9ffd0;
-                --accent-soft: rgba(185, 255, 208, 0.20);
+                font-size: 1rem;
             }
         }
     </style>
@@ -293,32 +239,32 @@
                         <li class="nav-item">
                             <a class="nav-link spa-link {% if request.endpoint == 'ventas' %}active{% endif %}"
                                href="{{ url_for('ventas') }}">
-                                <i class="bi bi-cart me-1"></i> Ventas
+                                Ventas
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link spa-link {% if request.endpoint == 'productos' %}active{% endif %}"
                                href="{{ url_for('productos') }}">
-                                <i class="bi bi-box-seam me-1"></i> Productos
+                                Productos
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link spa-link {% if request.endpoint == 'flujo' %}active{% endif %}"
                                href="{{ url_for('flujo') }}">
-                                <i class="bi bi-graph-down me-1"></i> Flujo
+                                Control de Flujo
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link spa-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
                                href="{{ url_for('dashboard') }}">
-                                <i class="bi bi-speedometer2 me-1"></i> Dashboard
+                                Dashboard
                             </a>
                         </li>
                         {% if session.get('is_admin') %}
                         <li class="nav-item">
                             <a class="nav-link spa-link {% if request.endpoint == 'usuarios' %}active{% endif %}"
                                href="{{ url_for('usuarios') }}">
-                                <i class="bi bi-people me-1"></i> Usuarios
+                                Usuarios
                             </a>
                         </li>
                         {% endif %}
@@ -379,7 +325,7 @@
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                ctx.fillStyle = '#a5ffbf';
+                ctx.fillStyle = '#00ff41';
                 ctx.font = fontSize + 'px monospace';
 
                 for (let i = 0; i < drops.length; i++) {
@@ -401,39 +347,16 @@
         })();
     </script>
 
-    <!-- Navegación tipo SPA + actualización de pestaña activa -->
+    <!-- Navegación tipo SPA -->
     <script>
         (function() {
             const content = document.getElementById('app-content');
-
-            function updateActiveNav(url) {
-                try {
-                    const fullUrl = new URL(url, window.location.origin);
-                    const currentPath = fullUrl.pathname;
-
-                    const links = document.querySelectorAll('a.spa-link');
-                    links.forEach(link => {
-                        const href = link.getAttribute('href');
-                        if (!href || href.startsWith('http')) return;
-
-                        const linkUrl = new URL(href, window.location.origin);
-                        if (linkUrl.pathname === currentPath) {
-                            link.classList.add('active');
-                        } else {
-                            link.classList.remove('active');
-                        }
-                    });
-                } catch (e) {
-                    // evitar romper la SPA si algo falla
-                }
-            }
 
             function loadPage(url, pushState = true) {
                 if (!content) {
                     window.location.href = url;
                     return;
                 }
-
                 fetch(url, {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 })
@@ -448,7 +371,6 @@
                         content.innerHTML = newContent.innerHTML;
                         if (newTitle) document.title = newTitle.textContent;
                         if (pushState) history.pushState({ url: url }, '', url);
-                        updateActiveNav(url);
                     } else {
                         window.location.href = url;
                     }
@@ -470,14 +392,9 @@
             });
 
             window.addEventListener('popstate', function(e) {
-                const url = (e.state && e.state.url)
-                    ? e.state.url
-                    : window.location.pathname + window.location.search;
+                const url = (e.state && e.state.url) ? e.state.url : window.location.pathname;
                 loadPage(url, false);
             });
-
-            // Sincronizar estado activo al cargar
-            updateActiveNav(window.location.pathname + window.location.search);
         })();
     </script>
     {% endblock %}
