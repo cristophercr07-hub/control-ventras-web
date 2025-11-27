@@ -405,7 +405,19 @@ def productos():
             except Exception as e:
                 error = f"Error al guardar el producto: {e}"
 
+    # Cargar productos de catálogo
     products = Product.query.order_by(Product.name).all()
+
+    # Mapa para JS (por si productos.html usa product_mapping | tojson)
+    product_mapping = {
+        p.name: {
+            "cost": float(p.cost or 0),
+            "price": float(p.price or 0),
+            "margin": float(p.margin_percent or 0),
+        }
+        for p in products
+    }
+
     return render_template(
         "productos.html",
         products=products,
@@ -420,6 +432,7 @@ def productos():
         profit_unit=profit_unit,
         profit_total=profit_total,
         margin_used=margin_used,
+        product_mapping=product_mapping,
     )
 
 
