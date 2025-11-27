@@ -20,19 +20,14 @@
 
     <style>
         :root {
-            /* Paleta oscura suavizada */
             --bg-main: #020a02;
             --bg-card: #050b06;
             --bg-card-soft: #07100a;
             --border-soft: #1b3b24;
-
-            /* Textos más neutros y legibles */
-            --text-main: #f1f3f4;
-            --text-secondary: #a0b0a0;
-
-            /* Acento claro (no verde fosforescente) */
-            --accent: #f5f5f5;
-            --accent-soft: rgba(245, 245, 245, 0.16);
+            --text-main: #e8f5e9;
+            --text-secondary: #9fb6a4;
+            --accent: #a5ffbf;
+            --accent-soft: rgba(165, 255, 191, 0.20);
         }
 
         html, body {
@@ -47,7 +42,6 @@
             overflow-x: hidden;
         }
 
-        /* Canvas de fondo tipo Matrix */
         #matrixCanvas {
             position: fixed;
             inset: 0;
@@ -77,6 +71,24 @@
         .nav-link {
             color: var(--text-secondary) !important;
             font-size: 0.9rem;
+            position: relative;
+            transition: color 0.15s ease;
+        }
+
+        .nav-link::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            bottom: -4px;
+            width: 0;
+            height: 2px;
+            background: var(--accent);
+            transition: width 0.18s ease;
+        }
+
+        .nav-link:hover::after,
+        .nav-link.active::after {
+            width: 100%;
         }
 
         .nav-link:hover,
@@ -131,14 +143,14 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #e0e0e0, #bdbdbd);
+            background: linear-gradient(135deg, #a5ffbf, #6fe29a);
             border: none;
             color: #000000;
             font-weight: 600;
         }
 
         .btn-primary:hover {
-            background: linear-gradient(135deg, #f5f5f5, #d6d6d6);
+            background: linear-gradient(135deg, #c4ffd2, #89ffb2);
             color: #000000;
         }
 
@@ -200,13 +212,58 @@
         }
 
         .matrix-border {
-            border: 1px solid rgba(245, 245, 245, 0.35);
-            box-shadow: 0 0 10px rgba(245, 245, 245, 0.25);
+            border: 1px solid rgba(165, 255, 191, 0.35);
+            box-shadow: 0 0 10px rgba(165, 255, 191, 0.25);
+        }
+
+        .highlight-number {
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
         }
 
         @media (max-width: 576px) {
             .navbar-brand {
-                font-size: 1rem;
+                font-size: 0.95rem;
+            }
+
+            .card {
+                box-shadow: 0 0 12px rgba(0, 0, 0, 0.7);
+                border-radius: 0.6rem;
+            }
+
+            h2, .h2 {
+                font-size: 1.3rem;
+            }
+
+            .field-box {
+                padding: 0.6rem;
+            }
+
+            .table-sm td,
+            .table-sm th {
+                padding: 0.25rem 0.35rem;
+                font-size: 0.75rem;
+            }
+
+            .form-control,
+            .form-select {
+                padding-top: 0.45rem;
+                padding-bottom: 0.45rem;
+                font-size: 0.85rem;
+            }
+
+            .small-label {
+                font-size: 0.7rem;
+            }
+
+            .highlight-number {
+                font-size: 1.6rem;
+            }
+
+            :root {
+                --accent: #b9ffd0;
+                --accent-soft: rgba(185, 255, 208, 0.20);
             }
         }
     </style>
@@ -234,32 +291,32 @@
                         <li class="nav-item">
                             <a class="nav-link spa-link {% if request.endpoint == 'ventas' %}active{% endif %}"
                                href="{{ url_for('ventas') }}">
-                                Ventas
+                                <i class="bi bi-cart me-1"></i> Ventas
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link spa-link {% if request.endpoint == 'productos' %}active{% endif %}"
                                href="{{ url_for('productos') }}">
-                                Productos
+                                <i class="bi bi-box-seam me-1"></i> Productos
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link spa-link {% if request.endpoint == 'flujo' %}active{% endif %}"
                                href="{{ url_for('flujo') }}">
-                                Control de Flujo
+                                <i class="bi bi-graph-down me-1"></i> Flujo
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link spa-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
                                href="{{ url_for('dashboard') }}">
-                                Dashboard
+                                <i class="bi bi-speedometer2 me-1"></i> Dashboard
                             </a>
                         </li>
                         {% if session.get('is_admin') %}
                         <li class="nav-item">
                             <a class="nav-link spa-link {% if request.endpoint == 'usuarios' %}active{% endif %}"
                                href="{{ url_for('usuarios') }}">
-                                Usuarios
+                                <i class="bi bi-people me-1"></i> Usuarios
                             </a>
                         </li>
                         {% endif %}
@@ -320,7 +377,7 @@
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                ctx.fillStyle = '#00ff41';
+                ctx.fillStyle = '#a5ffbf';
                 ctx.font = fontSize + 'px monospace';
 
                 for (let i = 0; i < drops.length; i++) {
@@ -342,16 +399,39 @@
         })();
     </script>
 
-    <!-- Navegación tipo SPA -->
+    <!-- Navegación tipo SPA + actualización de pestaña activa -->
     <script>
         (function() {
             const content = document.getElementById('app-content');
+
+            function updateActiveNav(url) {
+                try {
+                    const fullUrl = new URL(url, window.location.origin);
+                    const currentPath = fullUrl.pathname;
+
+                    const links = document.querySelectorAll('a.spa-link');
+                    links.forEach(link => {
+                        const href = link.getAttribute('href');
+                        if (!href || href.startsWith('http')) return;
+
+                        const linkUrl = new URL(href, window.location.origin);
+                        if (linkUrl.pathname === currentPath) {
+                            link.classList.add('active');
+                        } else {
+                            link.classList.remove('active');
+                        }
+                    });
+                } catch (e) {
+                    // no romper si falla
+                }
+            }
 
             function loadPage(url, pushState = true) {
                 if (!content) {
                     window.location.href = url;
                     return;
                 }
+
                 fetch(url, {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 })
@@ -366,6 +446,7 @@
                         content.innerHTML = newContent.innerHTML;
                         if (newTitle) document.title = newTitle.textContent;
                         if (pushState) history.pushState({ url: url }, '', url);
+                        updateActiveNav(url);
                     } else {
                         window.location.href = url;
                     }
@@ -387,9 +468,14 @@
             });
 
             window.addEventListener('popstate', function(e) {
-                const url = (e.state && e.state.url) ? e.state.url : window.location.pathname;
+                const url = (e.state && e.state.url)
+                    ? e.state.url
+                    : window.location.pathname + window.location.search;
                 loadPage(url, false);
             });
+
+            // Sincronizar estado activo al cargar
+            updateActiveNav(window.location.pathname + window.location.search);
         })();
     </script>
     {% endblock %}
