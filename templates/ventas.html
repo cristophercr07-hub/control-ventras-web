@@ -346,7 +346,7 @@
 {{ super() }}
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-    // Autocompletar fecha hoy si el input está vacío
+    // Autocompletar fecha de hoy si está vacío
     document.querySelectorAll('input[data-autotoday="1"]').forEach(function(input) {
         if (!input.value) {
             const today = new Date();
