@@ -1,261 +1,332 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <title>{% block title %}Control de Ventas{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <!-- Bootstrap 5 -->
     <link
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+        crossorigin="anonymous"
     >
-    <!-- Bootstrap Icons -->
+    <!-- Bootstrap Icons (opcional, pero ya los usamos en algunos botones) -->
     <link
         rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
     >
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
     <style>
+        :root {
+            --bg-main: #000000;
+            --bg-card: #111111;
+            --bg-card-soft: #151515;
+            --border-soft: #333333;
+            --text-main: #ffffff;
+            --text-secondary: #b3b3b3;
+            --accent: #00e6b8;
+            --accent-soft: rgba(0, 230, 184, 0.2);
+        }
+
         html, body {
             height: 100%;
-            margin: 0;
         }
+
         body {
-            background-color: #000000;
-            color: #ffffff;
+            background-color: var(--bg-main);
+            color: var(--text-main);
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            position: relative;
+            overflow-x: hidden;
         }
-        /* Canvas Matrix */
-        #matrixCanvas {
+
+        /* Fondo tipo Matrix */
+        .matrix-background {
             position: fixed;
             inset: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            display: block;
+            z-index: 0;
+            pointer-events: none;
+            background-color: #000000;
+            background-image:
+                linear-gradient(
+                    rgba(0, 255, 0, 0.25) 1px,
+                    transparent 1px
+                ),
+                linear-gradient(
+                    90deg,
+                    rgba(0, 255, 0, 0.25) 1px,
+                    transparent 1px
+                );
+            background-size: 12px 24px, 12px 24px;
+            opacity: 0.35;
+            animation: matrix-flow 16s linear infinite;
         }
-        .main-wrapper {
+
+        @keyframes matrix-flow {
+            0% {
+                background-position: 0 0, 0 0;
+            }
+            100% {
+                background-position: 0 100%, 0 100%;
+            }
+        }
+
+        /* Capa de contenido por encima del fondo */
+        .app-shell {
             position: relative;
-            z-index: 1;
+            z-index: 2;
+            min-height: 100vh;
         }
-        .card {
-            background-color: rgba(18, 18, 18, 0.9);
-            border-radius: 1rem;
-            border: 1px solid #333333;
-            box-shadow: 0 0 25px rgba(0, 255, 128, 0.1);
+
+        /* NAVBAR */
+        .navbar-dark {
+            background: linear-gradient(to right, #020202, #050505);
+            border-bottom: 1px solid var(--border-soft);
         }
-        .navbar-custom {
-            background: rgba(18, 18, 18, 0.9);
-            border-bottom: 1px solid #222;
-            backdrop-filter: blur(8px);
-        }
-        .text-accent {
-            color: #25f4ee;
-        }
-        .text-secondary-custom {
-            color: #aaaaaa;
-        }
-        .btn-primary {
-            background: linear-gradient(90deg, #25f4ee, #14cba8);
-            border: none;
-            color: #000;
-        }
-        .btn-primary:hover {
-            background: linear-gradient(90deg, #14cba8, #25f4ee);
-            color: #000;
-        }
-        .btn-outline-light {
-            border-color: #666;
-            color: #f5f5f5;
-        }
-        .btn-outline-light:hover {
-            background-color: #f5f5f5;
-            color: #000;
-        }
-        .form-control, .form-select, .table {
-            background-color: #111111;
-            color: #ffffff;
-            border-color: #444444;
-        }
-        .form-control:focus, .form-select:focus {
-            border-color: #25f4ee;
-            box-shadow: 0 0 0 0.2rem rgba(37, 244, 238, 0.25);
-        }
-        .table thead tr {
-            background-color: #181818;
-        }
-        .table-striped tbody tr:nth-of-type(odd) {
-            background-color: #151515;
-        }
-        .table-striped tbody tr:nth-of-type(even) {
-            background-color: #101010;
-        }
-        .badge.bg-success {
-            background-color: #198754 !important;
-        }
-        .badge.bg-warning {
-            background-color: #ffc107 !important;
-        }
-        .badge.bg-info {
-            background-color: #0dcaf0 !important;
-        }
-        .text-end {
-            text-align: right !important;
-            color: #25f4ee;
-        }
+
         .navbar-brand {
-            font-weight: 600;
-            letter-spacing: 0.05em;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: var(--accent) !important;
         }
+
+        .nav-link {
+            color: var(--text-secondary) !important;
+            font-size: 0.9rem;
+        }
+
+        .nav-link:hover,
         .nav-link.active {
-            color: #25f4ee !important;
+            color: var(--accent) !important;
         }
-        footer {
-            color: #777;
-            font-size: 0.8rem;
-            padding: 1rem 0;
+
+        /* CARDS / CONTENEDORES */
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-soft);
+            border-radius: 0.75rem;
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.65);
+        }
+
+        .card-header {
+            border-bottom-color: var(--border-soft);
+            background-color: var(--bg-card-soft);
+        }
+
+        /* TIPOGRAFÍA Y COLORES */
+        .text-accent {
+            color: var(--accent) !important;
+        }
+
+        .text-secondary-custom {
+            color: var(--text-secondary) !important;
+        }
+
+        .fw-narrow {
+            font-family: "Arial Narrow", Arial, sans-serif;
+        }
+
+        /* FORMULARIOS */
+        .form-control,
+        .form-select {
+            background-color: #050505;
+            border: 1px solid var(--border-soft);
+            color: var(--text-main);
+            border-radius: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 0.15rem var(--accent-soft);
+            background-color: #050505;
+            color: var(--text-main);
+        }
+
+        .form-control::placeholder {
+            color: #777777;
+        }
+
+        /* BOTONES */
+        .btn-primary {
+            background: linear-gradient(135deg, #00e6b8, #00b894);
+            border: none;
+            color: #000000;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #00ffc7, #00cfa1);
+            color: #000000;
+        }
+
+        .btn-outline-light {
+            border-color: var(--border-soft);
+            color: var(--text-secondary);
+        }
+
+        .btn-outline-light:hover {
+            background-color: var(--accent-soft);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* TABLAS */
+        .table-dark-custom {
+            color: var(--text-main);
+            background-color: #050505;
+            border-color: var(--border-soft);
+        }
+
+        .table-dark-custom thead th {
+            border-bottom: 1px solid var(--border-soft);
+            color: var(--accent);
+            font-size: 0.85rem;
             text-align: center;
+        }
+
+        .table-dark-custom tbody td {
+            font-size: 0.8rem;
+            vertical-align: middle;
+        }
+
+        .table-dark-custom tbody tr:nth-child(even) {
+            background-color: #0a0a0a;
+        }
+
+        .table-dark-custom tbody tr:hover {
+            background-color: #111111;
+        }
+
+        /* CUADROS / MARCOS PARA CAMPOS */
+        .field-box {
+            border: 1px solid var(--border-soft);
+            border-radius: 0.75rem;
+            padding: 0.75rem;
+            background-color: #050505;
+        }
+
+        .field-box-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-secondary);
+            margin-bottom: 0.35rem;
+        }
+
+        /* UTILIDADES */
+        .small-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .matrix-border {
+            border: 1px solid rgba(0, 230, 184, 0.35);
+            box-shadow: 0 0 10px rgba(0, 230, 184, 0.3);
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 576px) {
+            .navbar-brand {
+                font-size: 1rem;
+            }
         }
     </style>
 
-    {% block extra_head %}{% endblock %}
+    {% block head %}{% endblock %}
 </head>
 <body>
-<canvas id="matrixCanvas"></canvas>
+    <!-- Fondo Matrix -->
+    <div class="matrix-background"></div>
 
-<div class="main-wrapper">
-    <!-- NAVBAR -->
-    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom mb-4">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('ventas') }}">
-                <i class="bi bi-bar-chart-line me-2 text-accent"></i>
-                Control de Ventas
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                    data-bs-target="#navbarNav" aria-controls="navbarNav"
-                    aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            {% if session.get('user_id') %}
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path.startswith('/ventas') %}active{% endif %}"
-                           href="{{ url_for('ventas') }}">Ventas</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path.startswith('/productos') %}active{% endif %}"
-                           href="{{ url_for('productos') }}">Productos</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path.startswith('/flujo') %}active{% endif %}"
-                           href="{{ url_for('flujo') }}">Control de Flujo</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path.startswith('/dashboard') %}active{% endif %}"
-                           href="{{ url_for('dashboard') }}">Dashboard</a>
-                    </li>
-                    {% if session.get('is_admin') %}
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path.startswith('/usuarios') %}active{% endif %}"
-                           href="{{ url_for('usuarios') }}">Usuarios</a>
-                    </li>
-                    {% endif %}
-                </ul>
-                <span class="navbar-text me-3 text-secondary-custom">
-                    <i class="bi bi-person-circle me-1"></i>
-                    {{ session.get('user') }}
-                    {% if session.get('is_admin') %}
-                        <span class="badge bg-info text-dark ms-1">Admin</span>
-                    {% endif %}
-                </span>
-                <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">
-                    <i class="bi bi-box-arrow-right me-1"></i> Salir
+    <div class="app-shell d-flex flex-column">
+        <!-- NAVBAR SUPERIOR -->
+        <nav class="navbar navbar-expand-lg navbar-dark">
+            <div class="container-fluid">
+                <!-- Al hacer clic aquí te lleva al Dashboard -->
+                <a class="navbar-brand fw-bold fw-narrow" href="{{ url_for('dashboard') }}">
+                    Control de Ventas
                 </a>
-            </div>
-            {% endif %}
-        </div>
-    </nav>
 
-    <div class="container mb-4">
-        {% block content %}{% endblock %}
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#mainNavbar" aria-controls="mainNavbar"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="mainNavbar">
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0 fw-narrow">
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'ventas' %}active{% endif %}"
+                               href="{{ url_for('ventas') }}">
+                                Ventas
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'productos' %}active{% endif %}"
+                               href="{{ url_for('productos') }}">
+                                Productos / Calculadora
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'flujo' %}active{% endif %}"
+                               href="{{ url_for('flujo') }}">
+                                Control de Flujo
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
+                               href="{{ url_for('dashboard') }}">
+                                Dashboard
+                            </a>
+                        </li>
+                        {% if session.get('is_admin') %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'usuarios' %}active{% endif %}"
+                               href="{{ url_for('usuarios') }}">
+                                Usuarios
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+
+                    <div class="d-flex align-items-center gap-2">
+                        {% if session.get('user') %}
+                            <span class="small text-secondary-custom fw-narrow">
+                                {{ session.get('user') }}
+                                {% if session.get('is_admin') %}(admin){% endif %}
+                            </span>
+                            <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm fw-narrow">
+                                <i class="bi bi-box-arrow-right me-1"></i> Salir
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- CONTENIDO PRINCIPAL -->
+        <main class="flex-grow-1">
+            <div class="container py-4">
+                {% block content %}
+                {% endblock %}
+            </div>
+        </main>
     </div>
 
-    <footer>
-        Control de Ventas & Flujo · Desarrollado por ti · {{ datetime.utcnow().year if false else '' }}
-    </footer>
-</div>
+    {% block extra_scripts %}
+    <!-- Bootstrap JS -->
+    <script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"
+    ></script>
 
-<!-- Bootstrap JS -->
-<script
-    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js">
-</script>
-
-<script>
-// Doble confirmación reutilizable
-function doubleConfirm(msg1, msg2) {
-    if (!confirm(msg1)) {
-        return false;
-    }
-    return confirm(msg2);
-}
-
-// Canvas estilo Matrix
-document.addEventListener("DOMContentLoaded", function () {
-    const canvas = document.getElementById("matrixCanvas");
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-
-    function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
-
-    const fontSize = 14;
-    const columns = () => Math.floor(canvas.width / fontSize);
-    let drops = [];
-    function initDrops() {
-        drops = [];
-        for (let x = 0; x < columns(); x++) {
-            drops[x] = Math.random() * canvas.height;
-        }
-    }
-    initDrops();
-    window.addEventListener("resize", initDrops);
-
-    const characters = "01";
-
-    function draw() {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.fillStyle = "#00FF41";
-        ctx.font = fontSize + "px monospace";
-
-        for (let i = 0; i < drops.length; i++) {
-            const text = characters.charAt(Math.floor(Math.random() * characters.length));
-            const x = i * fontSize;
-            const y = drops[i] * fontSize;
-            ctx.fillText(text, x, y);
-
-            if (y > canvas.height && Math.random() > 0.95) {
-                drops[i] = 0;
-            }
-            drops[i]++;
-        }
-
-        requestAnimationFrame(draw);
-    }
-    draw();
-});
-</script>
-
-{% block extra_scripts %}{% endblock %}
+    <!-- Chart.js (para dashboard y gráficos) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    {% endblock %}
 </body>
 </html>
