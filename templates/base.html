@@ -20,7 +20,7 @@
 
     <style>
         :root {
-            /* Paleta Matrix oscura ORIGINAL */
+            /* Paleta Matrix oscura */
             --bg-main: #020a02;
             --bg-card: #050b06;
             --bg-card-soft: #07100a;
@@ -73,11 +73,30 @@
         .nav-link {
             color: var(--text-secondary) !important;
             font-size: 0.9rem;
+            position: relative;
+            transition: color 0.15s ease, transform 0.15s ease;
+        }
+
+        .nav-link::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            bottom: -4px;
+            width: 0;
+            height: 2px;
+            background: var(--accent);
+            transition: width 0.18s ease;
+        }
+
+        .nav-link:hover::after,
+        .nav-link.active::after {
+            width: 100%;
         }
 
         .nav-link:hover,
         .nav-link.active {
             color: var(--accent) !important;
+            transform: translateY(-1px);
         }
 
         /* CARDS / CONTENEDORES */
@@ -149,6 +168,7 @@
             color: var(--accent);
         }
 
+        /* TABLAS */
         .table-dark-custom {
             color: var(--text-main);
             background-color: #020502;
@@ -157,16 +177,22 @@
 
         .table-dark-custom thead th {
             border-bottom: 1px solid var(--border-soft);
-            /* SOLO cambiamos el color de los títulos de la tabla */
-            color: #4caf50; /* verde oscuro */
-            font-size: 0.85rem;
+            color: #4caf50; /* verde oscuro para títulos */
+            font-size: 0.9rem;
             text-align: center;
             font-weight: 600;
         }
 
         .table-dark-custom tbody td {
-            font-size: 0.8rem;
+            font-size: 0.9rem;                 /* un poco más grande */
+            padding: 0.55rem 0.5rem;           /* más altura en filas */
+            text-align: center;                /* centrar por defecto */
             vertical-align: middle;
+        }
+
+        /* Forzar que incluso los td con clase text-end queden centrados en estas tablas */
+        .table-dark-custom tbody td.text-end {
+            text-align: center !important;
         }
 
         .table-dark-custom tbody tr:nth-child(even) {
@@ -202,7 +228,6 @@
             box-shadow: 0 0 10px rgba(0, 255, 65, 0.25);
         }
 
-        /* Opcional: para futuros números destacados */
         .highlight-number {
             font-size: 1.4rem;
             font-weight: 700;
@@ -347,10 +372,77 @@
         })();
     </script>
 
-    <!-- Navegación tipo SPA -->
+    <!-- Navegación tipo SPA + pestaña activa + lógica Ventas -->
     <script>
         (function() {
             const content = document.getElementById('app-content');
+
+            function updateActiveNavFromUrl(url) {
+                try {
+                    const full = new URL(url, window.location.origin);
+                    const currentPath = full.pathname;
+                    const links = document.querySelectorAll('a.spa-link');
+                    links.forEach(link => {
+                        const href = link.getAttribute('href');
+                        if (!href || href.startsWith('http')) return;
+                        const linkUrl = new URL(href, window.location.origin);
+                        if (linkUrl.pathname === currentPath) {
+                            link.classList.add('active');
+                        } else {
+                            link.classList.remove('active');
+                        }
+                    });
+                } catch (e) {
+                    // ignorar errores
+                }
+            }
+
+            function initVentasPage() {
+                const dataTag = document.getElementById('product_mapping_data');
+                if (!dataTag) return;
+
+                let mapping = {};
+                try {
+                    mapping = JSON.parse(dataTag.textContent || '{}');
+                } catch (e) {
+                    mapping = {};
+                }
+
+                const select = document.getElementById('product_select');
+                const productInput = document.getElementById('product_input');
+                const costInput = document.getElementById('cost_per_unit');
+                const priceInput = document.getElementById('price_per_unit');
+
+                if (select) {
+                    select.addEventListener('change', function() {
+                        const name = this.value;
+                        if (name && mapping[name]) {
+                            if (productInput) productInput.value = name;
+                            if (costInput) costInput.value = mapping[name].cost;
+                            if (priceInput) priceInput.value = mapping[name].price;
+                        }
+                    });
+                }
+            }
+
+            function runPageInits(url) {
+                try {
+                    const full = new URL(url, window.location.origin);
+                    const path = full.pathname;
+                    if (path.startsWith('/ventas')) {
+                        initVentasPage();
+                    }
+                } catch (e) {
+                    // ignorar
+                }
+            }
+
+            // Confirm global para borrar venta
+            window.confirmDeleteSale = function(id) {
+                const first = confirm("¿Seguro que deseas eliminar la venta #" + id + "?");
+                if (!first) return false;
+                return confirm("Esta acción no se puede deshacer. Confirma nuevamente para eliminar.");
+            };
 
             function loadPage(url, pushState = true) {
                 if (!content) {
@@ -371,6 +463,8 @@
                         content.innerHTML = newContent.innerHTML;
                         if (newTitle) document.title = newTitle.textContent;
                         if (pushState) history.pushState({ url: url }, '', url);
+                        updateActiveNavFromUrl(url);
+                        runPageInits(url);
                     } else {
                         window.location.href = url;
                     }
@@ -392,9 +486,16 @@
             });
 
             window.addEventListener('popstate', function(e) {
-                const url = (e.state && e.state.url) ? e.state.url : window.location.pathname;
+                const url = (e.state && e.state.url)
+                    ? e.state.url
+                    : window.location.pathname + window.location.search;
                 loadPage(url, false);
             });
+
+            // Al cargar la página por primera vez
+            const currentUrl = window.location.pathname + window.location.search;
+            updateActiveNavFromUrl(currentUrl);
+            runPageInits(currentUrl);
         })();
     </script>
     {% endblock %}
