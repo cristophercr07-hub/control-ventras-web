@@ -758,7 +758,7 @@ def flujo_export():
 
 
 # ---------------------------------------------------------
-# DASHBOARD
+# DASHBOARD (PROFESIONAL + ALERTAS)
 # ---------------------------------------------------------
 
 @app.route("/dashboard")
@@ -805,7 +805,27 @@ def dashboard():
 
     sales = sales_query.order_by(Sale.date).all()
 
-    # Top productos por ganancia acumulada (filtrada)
+    # -----------------------------
+    # KPIs PRINCIPALES
+    # -----------------------------
+    total_ventas = len(sales)
+    total_revenue = sum(float(s.total or 0) for s in sales)
+    total_ganancia = sum(float(s.profit or 0) for s in sales)
+    total_cost = sum(float(s.cost_per_unit or 0) * float(s.quantity or 0) for s in sales)
+
+    avg_ticket = total_revenue / total_ventas if total_ventas > 0 else 0.0
+    margin_percent = (total_ganancia / total_revenue * 100.0) if total_revenue > 0 else 0.0
+
+    paid_revenue = sum(float(s.total or 0) for s in sales if s.status == "Pagado")
+    pending_revenue = sum(float(s.total or 0) for s in sales if s.status == "Pendiente")
+    pending_count = sum(1 for s in sales if s.status == "Pendiente")
+
+    paid_pending_labels = ["Pagado", "Pendiente"]
+    paid_pending_values = [round(paid_revenue, 2), round(pending_revenue, 2)]
+
+    # -----------------------------
+    # TOP PRODUCTOS POR GANANCIA
+    # -----------------------------
     profit_by_product = defaultdict(float)
     for s in sales:
         profit_by_product[s.product] += float(s.profit or 0)
@@ -815,7 +835,9 @@ def dashboard():
     top_labels = [name for name, _ in top_items]
     top_values = [round(value, 2) for _, value in top_items]
 
-    # Ganancias por semana (ISO week), también filtradas por fecha
+    # -----------------------------
+    # GANANCIA POR SEMANA (ISO WEEK)
+    # -----------------------------
     profit_by_week = defaultdict(float)
     for s in sales:
         if not s.date:
@@ -831,7 +853,9 @@ def dashboard():
     week_labels = [k for k, _ in weeks_sorted]
     week_values = [round(v, 2) for _, v in weeks_sorted]
 
-    # Ganancia por usuario del sistema
+    # -----------------------------
+    # GANANCIA POR USUARIO DEL SISTEMA
+    # -----------------------------
     profit_by_user = defaultdict(float)
     for s in sales:
         if s.user:
@@ -841,19 +865,41 @@ def dashboard():
     user_labels = [u for u, _ in user_items]
     user_values = [round(v, 2) for _, v in user_items]
 
-    total_ganancia = sum(float(s.profit or 0) for s in sales)
+    # ALERTAS (E)
+    alert_pending = pending_revenue > 0
+    alert_low_margin = (margin_percent < 15.0 and total_revenue > 0)
+    alert_no_data = (total_ventas == 0)
 
     return render_template(
         "dashboard.html",
+        # KPIs
+        total_ventas=total_ventas,
+        total_revenue=total_revenue,
+        total_ganancia=total_ganancia,
+        total_cost=total_cost,
+        avg_ticket=avg_ticket,
+        margin_percent=margin_percent,
+        paid_revenue=paid_revenue,
+        pending_revenue=pending_revenue,
+        pending_count=pending_count,
+        # Gráfico pagado vs pendiente
+        paid_pending_labels=paid_pending_labels,
+        paid_pending_values=paid_pending_values,
+        # Gráficos existentes
         top_labels=top_labels,
         top_values=top_values,
         week_labels=week_labels,
         week_values=week_values,
         user_labels=user_labels,
         user_values=user_values,
-        total_ganancia=total_ganancia,
+        # Filtros
         date_from=date_from,
         date_to=date_to,
+        preset=preset,
+        # Alertas
+        alert_pending=alert_pending,
+        alert_low_margin=alert_low_margin,
+        alert_no_data=alert_no_data,
     )
 
 
