@@ -20,15 +20,19 @@
 
     <style>
         :root {
-            /* Paleta Matrix oscura */
+            /* Paleta oscura suavizada */
             --bg-main: #020a02;
             --bg-card: #050b06;
             --bg-card-soft: #07100a;
             --border-soft: #1b3b24;
-            --text-main: #e8f5e9;
-            --text-secondary: #9ccc9c;
-            --accent: #00ff41;
-            --accent-soft: rgba(0, 255, 65, 0.20);
+
+            /* Textos más neutros y legibles */
+            --text-main: #f1f3f4;
+            --text-secondary: #a0b0a0;
+
+            /* Acento claro (no verde fosforescente) */
+            --accent: #f5f5f5;
+            --accent-soft: rgba(245, 245, 245, 0.16);
         }
 
         html, body {
@@ -127,14 +131,14 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #00ff41, #00c932);
+            background: linear-gradient(135deg, #e0e0e0, #bdbdbd);
             border: none;
             color: #000000;
             font-weight: 600;
         }
 
         .btn-primary:hover {
-            background: linear-gradient(135deg, #66ff88, #00e648);
+            background: linear-gradient(135deg, #f5f5f5, #d6d6d6);
             color: #000000;
         }
 
@@ -196,8 +200,8 @@
         }
 
         .matrix-border {
-            border: 1px solid rgba(0, 255, 65, 0.35);
-            box-shadow: 0 0 10px rgba(0, 255, 65, 0.25);
+            border: 1px solid rgba(245, 245, 245, 0.35);
+            box-shadow: 0 0 10px rgba(245, 245, 245, 0.25);
         }
 
         @media (max-width: 576px) {
