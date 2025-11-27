@@ -12,7 +12,7 @@
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
         crossorigin="anonymous"
     >
-    <!-- Bootstrap Icons (opcional, pero ya los usamos en algunos botones) -->
+    <!-- Bootstrap Icons -->
     <link
         rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
@@ -42,35 +42,13 @@
             overflow-x: hidden;
         }
 
-        /* Fondo tipo Matrix */
-        .matrix-background {
+        /* Canvas de fondo tipo Matrix */
+        #matrixCanvas {
             position: fixed;
             inset: 0;
             z-index: 0;
             pointer-events: none;
             background-color: #000000;
-            background-image:
-                linear-gradient(
-                    rgba(0, 255, 0, 0.25) 1px,
-                    transparent 1px
-                ),
-                linear-gradient(
-                    90deg,
-                    rgba(0, 255, 0, 0.25) 1px,
-                    transparent 1px
-                );
-            background-size: 12px 24px, 12px 24px;
-            opacity: 0.35;
-            animation: matrix-flow 16s linear infinite;
-        }
-
-        @keyframes matrix-flow {
-            0% {
-                background-position: 0 0, 0 0;
-            }
-            100% {
-                background-position: 0 100%, 0 100%;
-            }
         }
 
         /* Capa de contenido por encima del fondo */
@@ -239,8 +217,8 @@
     {% block head %}{% endblock %}
 </head>
 <body>
-    <!-- Fondo Matrix -->
-    <div class="matrix-background"></div>
+    <!-- Canvas de fondo tipo Matrix -->
+    <canvas id="matrixCanvas"></canvas>
 
     <div class="app-shell d-flex flex-column">
         <!-- NAVBAR SUPERIOR -->
@@ -327,6 +305,55 @@
 
     <!-- Chart.js (para dashboard y gráficos) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Script Matrix (códigos cayendo lento) -->
+    <script>
+        (function() {
+            const canvas = document.getElementById('matrixCanvas');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            const letters = '01ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%&';
+            const fontSize = 14;             // tamaño de letra
+            let columns = Math.floor(canvas.width / fontSize);
+            let drops = new Array(columns).fill(0);
+
+            function draw() {
+                // Fondo semi-transparente para crear el efecto de rastro
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#00ff41';
+                ctx.font = fontSize + 'px monospace';
+
+                for (let i = 0; i < drops.length; i++) {
+                    const text = letters.charAt(Math.floor(Math.random() * letters.length));
+                    const x = i * fontSize;
+                    const y = drops[i] * fontSize;
+
+                    ctx.fillText(text, x, y);
+
+                    // Reinicio de la columna con probabilidad baja (caída lenta)
+                    if (y > canvas.height && Math.random() > 0.985) {
+                        drops[i] = 0;
+                    } else {
+                        drops[i] += 0.5; // velocidad más lenta
+                    }
+                }
+            }
+
+            // Intervalo más grande => animación más lenta
+            setInterval(draw, 70);
+        })();
+    </script>
     {% endblock %}
 </body>
 </html>
