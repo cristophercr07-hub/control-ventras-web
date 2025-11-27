@@ -23,10 +23,14 @@ from sqlalchemy import inspect
 
 app = Flask(__name__)
 
+# RUTA ABSOLUTA PARA LA BD (FUNCIONA EN LOCAL Y EN RENDER)
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+db_path = os.path.join(BASE_DIR, "ventas.db")
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+
 # SECRET_KEY desde variable de entorno (más seguro en producción)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-key-change-me")
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///ventas.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Cookies de sesión más seguras
@@ -758,7 +762,7 @@ def flujo_export():
 
 
 # ---------------------------------------------------------
-# DASHBOARD (PROFESIONAL + ALERTAS)
+# DASHBOARD (MEJORADO + ALERTAS)
 # ---------------------------------------------------------
 
 @app.route("/dashboard")
@@ -805,27 +809,25 @@ def dashboard():
 
     sales = sales_query.order_by(Sale.date).all()
 
-    # -----------------------------
-    # KPIs PRINCIPALES
-    # -----------------------------
-    total_ventas = len(sales)
-    total_revenue = sum(float(s.total or 0) for s in sales)
+    # Métricas del periodo filtrado
     total_ganancia = sum(float(s.profit or 0) for s in sales)
-    total_cost = sum(float(s.cost_per_unit or 0) * float(s.quantity or 0) for s in sales)
+    total_monto_period = sum(float(s.total or 0) for s in sales)
+    total_ventas_period = len(sales)
 
-    avg_ticket = total_revenue / total_ventas if total_ventas > 0 else 0.0
-    margin_percent = (total_ganancia / total_revenue * 100.0) if total_revenue > 0 else 0.0
+    avg_ticket = total_monto_period / total_ventas_period if total_ventas_period > 0 else 0.0
+    avg_profit_per_sale = total_ganancia / total_ventas_period if total_ventas_period > 0 else 0.0
 
-    paid_revenue = sum(float(s.total or 0) for s in sales if s.status == "Pagado")
-    pending_revenue = sum(float(s.total or 0) for s in sales if s.status == "Pendiente")
-    pending_count = sum(1 for s in sales if s.status == "Pendiente")
+    profit_by_day = defaultdict(float)
+    for s in sales:
+        if s.date:
+            d = s.date
+            if isinstance(d, datetime.datetime):
+                d = d.date()
+            profit_by_day[d] += float(s.profit or 0)
+    num_dias = len(profit_by_day)
+    avg_daily_profit = total_ganancia / num_dias if num_dias > 0 else 0.0
 
-    paid_pending_labels = ["Pagado", "Pendiente"]
-    paid_pending_values = [round(paid_revenue, 2), round(pending_revenue, 2)]
-
-    # -----------------------------
-    # TOP PRODUCTOS POR GANANCIA
-    # -----------------------------
+    # Top productos por ganancia acumulada (filtrada)
     profit_by_product = defaultdict(float)
     for s in sales:
         profit_by_product[s.product] += float(s.profit or 0)
@@ -835,9 +837,7 @@ def dashboard():
     top_labels = [name for name, _ in top_items]
     top_values = [round(value, 2) for _, value in top_items]
 
-    # -----------------------------
-    # GANANCIA POR SEMANA (ISO WEEK)
-    # -----------------------------
+    # Ganancias por semana (ISO week), filtradas por fecha
     profit_by_week = defaultdict(float)
     for s in sales:
         if not s.date:
@@ -853,9 +853,7 @@ def dashboard():
     week_labels = [k for k, _ in weeks_sorted]
     week_values = [round(v, 2) for _, v in weeks_sorted]
 
-    # -----------------------------
-    # GANANCIA POR USUARIO DEL SISTEMA
-    # -----------------------------
+    # Ganancia por usuario del sistema
     profit_by_user = defaultdict(float)
     for s in sales:
         if s.user:
@@ -865,41 +863,79 @@ def dashboard():
     user_labels = [u for u, _ in user_items]
     user_values = [round(v, 2) for _, v in user_items]
 
-    # ALERTAS (E)
-    alert_pending = pending_revenue > 0
-    alert_low_margin = (margin_percent < 15.0 and total_revenue > 0)
-    alert_no_data = (total_ventas == 0)
+    # -------------------------------------------------
+    # ALERTAS AUTOMÁTICAS (a nivel global, no solo filtrado)
+    # -------------------------------------------------
+    alerts = []
+
+    today = datetime.date.today()
+
+    # 1) Ventas pendientes con más de 1 día de antigüedad
+    pending_sales = Sale.query.filter(Sale.status == "Pendiente").all()
+    old_pending = [
+        s for s in pending_sales
+        if s.date and s.date <= today - datetime.timedelta(days=1)
+    ]
+    if old_pending:
+        total_pend_antiguo = sum(float(s.total or 0) for s in old_pending)
+        alerts.append({
+            "level": "warning",
+            "title": "Ventas pendientes con antigüedad",
+            "message": (
+                f"Tienes {len(old_pending)} ventas pendientes con más de 1 día "
+                f"por un monto total aproximado de ₡{total_pend_antiguo:,.2f}. "
+                "Revisa los cobros para no perder liquidez."
+            ),
+        })
+
+    # 2) Utilidad semanal por debajo de un umbral objetivo
+    seven_days_ago = today - datetime.timedelta(days=7)
+    weekly_sales = Sale.query.filter(
+        Sale.date >= seven_days_ago,
+        Sale.date <= today
+    ).all()
+    weekly_profit = sum(float(s.profit or 0) for s in weekly_sales)
+
+    # Umbral configurable vía variable de entorno, por ejemplo 50000, 100000, etc.
+    # Si no se define, no generamos alerta de utilidad semanal.
+    min_weekly_profit_str = os.environ.get("ALERT_WEEKLY_PROFIT_MIN", "").strip()
+    try:
+        min_weekly_profit = float(min_weekly_profit_str) if min_weekly_profit_str else 0.0
+    except ValueError:
+        min_weekly_profit = 0.0
+
+    if min_weekly_profit > 0 and weekly_profit < min_weekly_profit:
+        alerts.append({
+            "level": "danger",
+            "title": "Utilidad semanal por debajo del objetivo",
+            "message": (
+                f"La utilidad de los últimos 7 días es de ₡{weekly_profit:,.2f}, "
+                f"por debajo del objetivo mínimo de ₡{min_weekly_profit:,.2f}. "
+                "Considera ajustar precios, volumen de ventas o estructura de gastos."
+            ),
+        })
 
     return render_template(
         "dashboard.html",
-        # KPIs
-        total_ventas=total_ventas,
-        total_revenue=total_revenue,
-        total_ganancia=total_ganancia,
-        total_cost=total_cost,
-        avg_ticket=avg_ticket,
-        margin_percent=margin_percent,
-        paid_revenue=paid_revenue,
-        pending_revenue=pending_revenue,
-        pending_count=pending_count,
-        # Gráfico pagado vs pendiente
-        paid_pending_labels=paid_pending_labels,
-        paid_pending_values=paid_pending_values,
-        # Gráficos existentes
         top_labels=top_labels,
         top_values=top_values,
         week_labels=week_labels,
         week_values=week_values,
         user_labels=user_labels,
         user_values=user_values,
-        # Filtros
+        total_ganancia=total_ganancia,
         date_from=date_from,
         date_to=date_to,
-        preset=preset,
-        # Alertas
-        alert_pending=alert_pending,
-        alert_low_margin=alert_low_margin,
-        alert_no_data=alert_no_data,
+        # métricas nuevas:
+        total_ventas_period=total_ventas_period,
+        total_monto_period=total_monto_period,
+        avg_ticket=avg_ticket,
+        avg_profit_per_sale=avg_profit_per_sale,
+        avg_daily_profit=avg_daily_profit,
+        # alertas:
+        alerts=alerts,
+        weekly_profit=weekly_profit,
+        min_weekly_profit=min_weekly_profit,
     )
 
 
