@@ -1,30 +1,47 @@
 {% extends "base.html" %}
-
 {% block title %}Login - Control de Ventas{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6 col-lg-4">
+    <div class="col-md-5 col-12">
         <div class="card p-4">
-            <h2 class="mb-3 text-accent">Ingreso al sistema</h2>
+            <h2 class="mb-3 text-center text-accent">
+                <i class="bi bi-lock-fill me-2"></i> Acceso al sistema
+            </h2>
+            <p class="text-secondary-custom text-center mb-4">
+                Ingresa con tu usuario y contraseña para acceder al control
+                de ventas y flujo de caja.
+            </p>
 
             {% if error %}
-                <div class="alert alert-danger py-2">
+                <div class="alert alert-danger py-2 text-center">
                     {{ error }}
                 </div>
             {% endif %}
 
-            <form method="post">
+            <form method="post" action="{{ url_for('login') }}">
                 <div class="mb-3">
-                    <label for="username" class="form-label text-secondary-custom">Usuario</label>
-                    <input type="text" class="form-control text-center" id="username" name="username" required>
+                    <label class="form-label text-secondary-custom">Usuario</label>
+                    <input
+                        type="text"
+                        name="username"
+                        class="form-control text-center"
+                        placeholder="Tu usuario"
+                        required
+                    >
                 </div>
                 <div class="mb-3">
-                    <label for="password" class="form-label text-secondary-custom">Contraseña</label>
-                    <input type="password" class="form-control text-center" id="password" name="password" required>
+                    <label class="form-label text-secondary-custom">Contraseña</label>
+                    <input
+                        type="password"
+                        name="password"
+                        class="form-control text-center"
+                        placeholder="Tu contraseña"
+                        required
+                    >
                 </div>
                 <button type="submit" class="btn btn-primary w-100 mt-2">
-                    Entrar
+                    <i class="bi bi-box-arrow-in-right me-1"></i> Ingresar
                 </button>
             </form>
         </div>
