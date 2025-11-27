@@ -357,8 +357,9 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     });
 
-    // Mapa de productos { nombre: {cost, price} } enviado desde Flask
-    const productData = {{ product_mapping|tojson }};
+    // Mapa de productos { nombre: {cost, price} } enviado desde Flask.
+    // default({}, true) asegura que no falle aunque no llegue la variable.
+    const productData = {{ product_mapping|default({}, true)|tojson }};
 
     const select = document.getElementById("productSelect");
     const costInput = document.getElementById("costPerUnit");
