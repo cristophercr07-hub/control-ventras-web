@@ -307,6 +307,7 @@
 {% block extra_scripts %}
 {{ super() }}
 <script>
+// Mapeo de productos -> costo y precio (inyectado desde el backend)
 const productMapping = {{ product_mapping | tojson }};
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -318,9 +319,9 @@ document.addEventListener("DOMContentLoaded", function() {
     if (select) {
         select.addEventListener("change", function() {
             const name = this.value;
-            if (name && productMapping[name]) {
+            if (name && productMapping && productMapping[name]) {
                 if (productInput) productInput.value = name;
-                if (costInput) costInput.value = productMapping[name].cost;
+                if (costInput)  costInput.value  = productMapping[name].cost;
                 if (priceInput) priceInput.value = productMapping[name].price;
             }
         });
