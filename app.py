@@ -44,6 +44,29 @@ MIN_MARGIN_PERCENT = 7.0
 
 
 # ---------------------------------------------------------
+# FILTROS JINJA PERSONALIZADOS
+# ---------------------------------------------------------
+
+@app.template_filter("format_num")
+def format_num_filter(value):
+    """
+    Formatea valores numéricos con 2 decimales y separador de miles.
+    Ejemplo: 12345.6 -> '12.345,60'
+    """
+    try:
+        value = float(value or 0)
+    except (TypeError, ValueError):
+        return "0,00"
+
+    # 12,345.60 (formato US)
+    formatted = f"{value:,.2f}"
+
+    # Convertimos a 12.345,60 (formato "latino")
+    formatted = formatted.replace(",", "X").replace(".", ",").replace("X", ".")
+    return formatted
+
+
+# ---------------------------------------------------------
 # MODELOS
 # ---------------------------------------------------------
 
@@ -973,4 +996,14 @@ def dashboard():
 # ---------------------------------------------------------
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Control de modo debug por variable de entorno
+    debug = os.environ.get("FLASK_DEBUG", "1") == "1"
+
+    # Render (u otros proveedores) pueden asignar el puerto por variable de entorno
+    port = int(os.environ.get("PORT", 5000))
+
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=debug,
+    )
