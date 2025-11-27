@@ -3,191 +3,203 @@
 
 {% block content %}
 
-<div class="row">
+<div class="row mb-4">
     <div class="col-12">
-        <div class="card p-4 mb-4">
-            <h2 class="mb-3 text-accent text-center">Control de Flujo</h2>
-            <p class="text-secondary-custom text-center mb-3">
-                Registra tus gastos y reinversiones, y visualiza cómo impactan
-                tus ganancias. Incluye un objetivo de ahorro del 10% de la
-                ganancia total.
-            </p>
+        <div class="card p-4">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
+                <div>
+                    <h2 class="mb-1 text-accent">Control de Flujo</h2>
+                    <p class="text-secondary-custom mb-0">
+                        Registra gastos y reinversiones, y controla tu flujo de caja y objetivo de ahorro.
+                    </p>
+                </div>
+            </div>
 
             {% if error %}
-                <div class="alert alert-danger py-2 mb-3 text-center">
-                    {{ error }}
-                </div>
+                <div class="alert alert-danger py-2 px-3 fw-narrow">{{ error }}</div>
             {% endif %}
             {% if success %}
-                <div class="alert alert-success py-2 mb-3 text-center">
-                    {{ success }}
-                </div>
+                <div class="alert alert-success py-2 px-3 fw-narrow">{{ success }}</div>
             {% endif %}
 
-            <!-- FORMULARIO DE MOVIMIENTO -->
-            <form method="post" action="{{ url_for('flujo') }}" class="mb-4">
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-3 col-6">
-                        <label class="form-label text-secondary-custom">Fecha</label>
-                        <input
-                            type="date"
-                            name="date"
-                            class="form-control text-center"
-                        >
-                    </div>
-                    <div class="col-md-4 col-12">
-                        <label class="form-label text-secondary-custom">Descripción</label>
-                        <input
-                            type="text"
-                            name="description"
-                            class="form-control text-center"
-                            placeholder="Ej: Compra insumos, gasolina, reinversión..."
-                            required
-                        >
-                    </div>
-                    <div class="col-md-2 col-6">
-                        <label class="form-label text-secondary-custom">Tipo</label>
-                        <select name="category" class="form-select text-center">
-                            <option value="Gasto">Gasto</option>
-                            <option value="Reinversión">Reinversión</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <label class="form-label text-secondary-custom">Monto (₡)</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="amount"
-                            class="form-control text-end"
-                            value="0"
-                            required
-                        >
-                    </div>
-                </div>
-                <div class="row mt-3">
-                    <div class="col text-center">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-plus-circle me-1"></i> Registrar movimiento
-                        </button>
+            <div class="row g-3">
+                <!-- FORM MOVIMIENTO -->
+                <div class="col-12 col-lg-6">
+                    <div class="field-box matrix-border h-100">
+                        <div class="field-box-title">Registrar movimiento</div>
+                        <form method="post" class="fw-narrow">
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="small-label mb-1">Fecha</label>
+                                    <input type="date" name="date" class="form-control form-control-sm"
+                                           value="{{ request.form.date or '' }}">
+                                </div>
+                                <div class="col-6">
+                                    <label class="small-label mb-1">Tipo</label>
+                                    <select name="category" class="form-select form-select-sm">
+                                        <option value="Gasto">Gasto</option>
+                                        <option value="Reinversión">Reinversión</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-12">
+                                    <label class="small-label mb-1">Descripción</label>
+                                    <input type="text" name="description" class="form-control form-control-sm"
+                                           placeholder="Ej: Compra de insumos, publicidad..."
+                                           value="{{ request.form.description or '' }}">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-12">
+                                    <label class="small-label mb-1">Monto (₡)</label>
+                                    <input type="number" step="0.01" min="0" name="amount"
+                                           class="form-control form-control-sm text-end"
+                                           value="{{ request.form.amount or '' }}">
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-end">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-plus-circle me-1"></i> Guardar movimiento
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
-            </form>
 
-            <hr class="mb-4">
+                <!-- FILTROS + RESUMEN -->
+                <div class="col-12 col-lg-6">
+                    <div class="field-box h-100">
+                        <div class="field-box-title">Filtros y resumen financiero</div>
+                        <form method="get" class="fw-narrow mb-3">
+                            <div class="row g-2 mb-2">
+                                <div class="col-4">
+                                    <label class="small-label mb-1">Desde</label>
+                                    <input type="date" name="date_from"
+                                           class="form-control form-control-sm"
+                                           value="{{ date_from or '' }}">
+                                </div>
+                                <div class="col-4">
+                                    <label class="small-label mb-1">Hasta</label>
+                                    <input type="date" name="date_to"
+                                           class="form-control form-control-sm"
+                                           value="{{ date_to or '' }}">
+                                </div>
+                                <div class="col-4">
+                                    <label class="small-label mb-1">Tipo</label>
+                                    <select name="category_filter" class="form-select form-select-sm">
+                                        <option value="">Todos</option>
+                                        <option value="Gasto" {% if category_filter == 'Gasto' %}selected{% endif %}>Gasto</option>
+                                        <option value="Reinversión" {% if category_filter == 'Reinversión' %}selected{% endif %}>Reinversión</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-12 d-flex justify-content-end gap-2">
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="bi bi-funnel me-1"></i> Filtrar
+                                    </button>
+                                    <a href="{{ url_for('flujo') }}" class="btn btn-outline-light btn-sm">
+                                        Limpiar
+                                    </a>
+                                    <a href="{{ url_for('flujo_export',
+                                                         date_from=date_from,
+                                                         date_to=date_to,
+                                                         category_filter=category_filter) }}"
+                                       class="btn btn-outline-light btn-sm">
+                                        <i class="bi bi-file-earmark-excel me-1"></i> Exportar
+                                    </a>
+                                </div>
+                            </div>
+                        </form>
 
-            <!-- FILTROS -->
-            <h3 class="mb-3 text-accent text-center">Filtros y resumen</h3>
-
-            <form method="get" action="{{ url_for('flujo') }}" class="mb-3">
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-3 col-6">
-                        <label class="form-label text-secondary-custom">Desde</label>
-                        <input
-                            type="date"
-                            name="date_from"
-                            class="form-control text-center"
-                            value="{{ date_from or '' }}"
-                        >
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <label class="form-label text-secondary-custom">Hasta</label>
-                        <input
-                            type="date"
-                            name="date_to"
-                            class="form-control text-center"
-                            value="{{ date_to or '' }}"
-                        >
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <label class="form-label text-secondary-custom">Tipo</label>
-                        <select name="category_filter" class="form-select text-center">
-                            <option value="" {% if not category_filter %}selected{% endif %}>Todos</option>
-                            <option value="Gasto" {% if category_filter == 'Gasto' %}selected{% endif %}>Gasto</option>
-                            <option value="Reinversión" {% if category_filter == 'Reinversión' %}selected{% endif %}>Reinversión</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <div class="d-flex flex-wrap gap-2">
-                            <button type="submit" class="btn btn-primary flex-grow-1">
-                                <i class="bi bi-funnel me-1"></i> Aplicar filtros
-                            </button>
-                            <a href="{{ url_for('flujo') }}" class="btn btn-outline-light flex-grow-1">
-                                <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar
-                            </a>
-                            <a
-                                href="{{ url_for('flujo_export',
-                                                 date_from=date_from,
-                                                 date_to=date_to,
-                                                 category_filter=category_filter) }}"
-                                class="btn btn-outline-light flex-grow-1"
-                            >
-                                <i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel
-                            </a>
+                        <!-- RESUMEN FINANCIERO -->
+                        <div class="row g-2 fw-narrow mb-3">
+                            <div class="col-6">
+                                <div class="card bg-dark border-secondary h-100">
+                                    <div class="card-body py-2 px-3">
+                                        <div class="small-label mb-1">Ingresos (ventas)</div>
+                                        <div class="h5 mb-0 text-accent">
+                                            ₡{{ total_ingresos|format_num }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="card bg-dark border-secondary h-100">
+                                    <div class="card-body py-2 px-3">
+                                        <div class="small-label mb-1">Ganancia bruta</div>
+                                        <div class="h5 mb-0 text-accent">
+                                            ₡{{ total_ganancia|format_num }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="card bg-dark border-secondary h-100">
+                                    <div class="card-body py-2 px-3">
+                                        <div class="small-label mb-1">Gastos</div>
+                                        <div class="h5 mb-0 text-accent">
+                                            ₡{{ total_gastos|format_num }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="card bg-dark border-secondary h-100">
+                                    <div class="card-body py-2 px-3">
+                                        <div class="small-label mb-1">Reinversión</div>
+                                        <div class="h5 mb-0 text-accent">
+                                            ₡{{ total_reinv|format_num }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="card bg-dark border-secondary h-100">
+                                    <div class="card-body py-2 px-3">
+                                        <div class="small-label mb-1">Egresos totales</div>
+                                        <div class="h5 mb-0 text-accent">
+                                            ₡{{ total_egresos|format_num }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="card bg-dark border-secondary h-100">
+                                    <div class="card-body py-2 px-3">
+                                        <div class="small-label mb-1">Flujo neto</div>
+                                        <div class="h5 mb-0 text-accent">
+                                            ₡{{ neto|format_num }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            </form>
 
-            <!-- RESUMEN -->
-            <div class="row text-center mt-3">
-                <div class="col-md-3 col-6 mb-2">
-                    <p class="text-secondary-custom">
-                        Ingresos (Ventas) (₡)<br>
-                        <span class="text-accent">{{ "%.2f"|format(total_ingresos) }}</span>
-                    </p>
-                </div>
-                <div class="col-md-3 col-6 mb-2">
-                    <p class="text-secondary-custom">
-                        Ganancia total (₡)<br>
-                        <span class="text-accent">{{ "%.2f"|format(total_ganancia) }}</span>
-                    </p>
-                </div>
-                <div class="col-md-2 col-6 mb-2">
-                    <p class="text-secondary-custom">
-                        Gastos (₡)<br>
-                        <span class="text-accent">{{ "%.2f"|format(total_gastos) }}</span>
-                    </p>
-                </div>
-                <div class="col-md-2 col-6 mb-2">
-                    <p class="text-secondary-custom">
-                        Reinversión (₡)<br>
-                        <span class="text-accent">{{ "%.2f"|format(total_reinv) }}</span>
-                    </p>
-                </div>
-                <div class="col-md-2 col-12 mb-2">
-                    <p class="text-secondary-custom">
-                        Neto (ganancia - egresos) (₡)<br>
-                        <span class="text-accent">{{ "%.2f"|format(neto) }}</span>
-                    </p>
-                </div>
-            </div>
-
-            <!-- OBJETIVO DE AHORRO -->
-            <div class="row mt-3">
-                <div class="col-12">
-                    <div class="border rounded-3 p-3">
-                        <p class="mb-1 text-secondary-custom text-center">
-                            Objetivo de ahorro mensual del <b>10%</b> sobre la ganancia total.
-                        </p>
-                        <p class="mb-1 text-center">
-                            Ahorro objetivo:
-                            <span class="text-accent">₡{{ "%.2f"|format(ahorro_objetivo) }}</span> ·
-                            Ahorro real ( Neto &ge; 0 ):
-                            <span class="text-accent">₡{{ "%.2f"|format(ahorro_real) }}</span> ·
-                            Diferencia:
-                            <span class="text-accent">₡{{ "%.2f"|format(ahorro_faltante) }}</span>
-                        </p>
-                        <p class="mb-0 text-center">
+                        <!-- OBJETIVO DE AHORRO -->
+                        <div class="field-box mt-2">
+                            <div class="small-label mb-1">Objetivo de ahorro mensual (10% de la ganancia)</div>
+                            <p class="mb-1 text-secondary-custom fw-narrow">
+                                Objetivo: <span class="text-accent fw-bold">₡{{ ahorro_objetivo|format_num }}</span>
+                            </p>
+                            <p class="mb-1 text-secondary-custom fw-narrow">
+                                Ahorro estimado: <span class="text-accent fw-bold">₡{{ ahorro_real|format_num }}</span>
+                            </p>
+                            <p class="mb-0 text-secondary-custom fw-narrow">
+                                Falta para la meta: <span class="text-accent fw-bold">₡{{ ahorro_faltante|format_num }}</span>
+                            </p>
                             {% if meta_cumplida %}
-                                <span class="badge bg-success">
-                                    Meta de ahorro alcanzada o superada en el periodo filtrado.
-                                </span>
+                                <div class="alert alert-success border-success py-2 px-3 mt-2 fw-narrow mb-0">
+                                    Meta de ahorro alcanzada o superada en este rango.
+                                </div>
                             {% else %}
-                                <span class="badge bg-warning text-dark">
-                                    Aún no alcanzas la meta de ahorro en el periodo filtrado.
-                                </span>
+                                <div class="alert alert-warning border-warning text-dark py-2 px-3 mt-2 fw-narrow mb-0">
+                                    Aún no alcanzas la meta de ahorro. Considera reducir gastos o aumentar margen.
+                                </div>
                             {% endif %}
-                        </p>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -196,156 +208,43 @@
     </div>
 </div>
 
-<!-- TABLA + GRÁFICOS -->
+<!-- TABLA MOVIMIENTOS -->
 <div class="row">
-    <div class="col-lg-6 col-12 mb-4">
-        <div class="card p-4 h-100">
-            <h3 class="mb-3 text-accent text-center">Movimientos registrados</h3>
-
-            {% if expenses and expenses|length > 0 %}
-                <div class="table-responsive">
-                    <table class="table table-dark table-striped table-sm align-middle">
-                        <thead>
-                            <tr class="text-center">
-                                <th>Fecha</th>
-                                <th>Descripción</th>
-                                <th>Tipo</th>
-                                <th>Monto (₡)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+    <div class="col-12">
+        <div class="card p-3">
+            <h5 class="text-accent mb-3 fw-narrow">Movimientos de flujo</h5>
+            <div class="table-responsive">
+                <table class="table table-dark-custom table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Descripción</th>
+                            <th>Tipo</th>
+                            <th>Monto (₡)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if expenses and expenses|length > 0 %}
                             {% for e in expenses %}
-                                <tr>
-                                    <td class="text-center">{{ e.date }}</td>
-                                    <td class="text-center">{{ e.description }}</td>
-                                    <td class="text-center">
-                                        {% if e.category == 'Gasto' %}
-                                            <span class="badge bg-warning text-dark">Gasto</span>
-                                        {% else %}
-                                            <span class="badge bg-info text-dark">Reinversión</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-end">{{ "%.2f"|format(e.amount) }}</td>
-                                </tr>
+                            <tr>
+                                <td class="text-center">{{ e.date.isoformat() if e.date else '' }}</td>
+                                <td class="text-center">{{ e.description }}</td>
+                                <td class="text-center">{{ e.category }}</td>
+                                <td class="text-end">₡{{ e.amount|format_num }}</td>
+                            </tr>
                             {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <p class="text-secondary-custom text-center mb-0">
-                    No hay movimientos registrados con los filtros actuales.
-                </p>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="col-lg-6 col-12 mb-4">
-        <div class="card p-4 mb-4">
-            <h4 class="mb-3 text-accent text-center">Distribución de egresos</h4>
-            <div class="d-flex justify-content-center">
-                <div style="max-width: 360px; width: 100%;">
-                    <canvas id="chartFlujoEgresos"></canvas>
-                </div>
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center text-secondary-custom">
+                                    No hay movimientos registrados con los filtros actuales.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
             </div>
-            <p class="text-secondary-custom text-center mt-3 mb-0">
-                Muestra la proporción de gastos, reinversión y el neto positivo (si existe).
-            </p>
-        </div>
-
-        <div class="card p-4">
-            <h4 class="mb-3 text-accent text-center">Ingresos vs egresos</h4>
-            <div class="d-flex justify-content-center">
-                <div style="max-width: 380px; width: 100%;">
-                    <canvas id="chartFlujoResumen"></canvas>
-                </div>
-            </div>
-            <p class="text-secondary-custom text-center mt-3 mb-0">
-                Compara tus ingresos por ventas, egresos totales y resultado neto
-                en el periodo seleccionado.
-            </p>
         </div>
     </div>
 </div>
 
-{% endblock %}
-
-{% block extra_scripts %}
-{{ super() }}
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-    const totalGastos = {{ total_gastos|default(0)|float }};
-    const totalReinv = {{ total_reinv|default(0)|float }};
-    const neto = {{ neto|default(0)|float }};
-    const totalIngresos = {{ total_ingresos|default(0)|float }};
-    const totalEgresos = {{ total_egresos|default(0)|float }};
-
-    // Datos para dona de egresos
-    const egresosLabels = [];
-    const egresosValues = [];
-
-    if (totalGastos > 0) {
-        egresosLabels.push("Gastos");
-        egresosValues.push(totalGastos);
-    }
-    if (totalReinv > 0) {
-        egresosLabels.push("Reinversión");
-        egresosValues.push(totalReinv);
-    }
-    if (neto > 0) {
-        egresosLabels.push("Neto positivo");
-        egresosValues.push(neto);
-    }
-
-    const ctxEgresos = document.getElementById("chartFlujoEgresos");
-    if (ctxEgresos && egresosLabels.length > 0) {
-        new Chart(ctxEgresos, {
-            type: "doughnut",
-            data: {
-                labels: egresosLabels,
-                datasets: [{
-                    data: egresosValues
-                }]
-            },
-            options: {
-                plugins: {
-                    legend: {
-                        labels: { color: "#ffffff" }
-                    }
-                }
-            }
-        });
-    }
-
-    const ctxResumen = document.getElementById("chartFlujoResumen");
-    if (ctxResumen) {
-        new Chart(ctxResumen, {
-            type: "bar",
-            data: {
-                labels: ["Ingresos", "Egresos", "Neto"],
-                datasets: [{
-                    label: "₡",
-                    data: [totalIngresos, totalEgresos, neto]
-                }]
-            },
-            options: {
-                scales: {
-                    x: {
-                        ticks: { color: "#ffffff" },
-                        grid: { color: "#333333" }
-                    },
-                    y: {
-                        ticks: { color: "#ffffff" },
-                        grid: { color: "#333333" }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        labels: { color: "#ffffff" }
-                    }
-                }
-            }
-        });
-    }
-});
-</script>
 {% endblock %}
