@@ -25,7 +25,7 @@
             {% endif %}
 
             <!-- FORMULARIO DE NUEVA VENTA -->
-            <form method="post" action="{{ url_for('ventas') }}" class="mb-4">
+            <form method="post" action="{{ url_for('ventas') }}" class="mb-4" id="formVenta">
                 <div class="row g-3 align-items-end">
                     <div class="col-md-2 col-6">
                         <label class="form-label text-secondary-custom">Fecha</label>
@@ -48,7 +48,7 @@
                     </div>
                     <div class="col-md-3 col-12">
                         <label class="form-label text-secondary-custom">Producto</label>
-                        <select name="product_select" class="form-select text-center mb-1">
+                        <select name="product_select" class="form-select text-center mb-1" id="productSelect">
                             <option value="">-- Selecciona del catálogo --</option>
                             {% for p in products %}
                                 <option value="{{ p.name }}">{{ p.name }}</option>
@@ -58,6 +58,7 @@
                             type="text"
                             name="product"
                             class="form-control text-center"
+                            id="productInput"
                             placeholder="O escribe el producto manualmente"
                         >
                     </div>
@@ -89,6 +90,7 @@
                             step="0.01"
                             name="cost_per_unit"
                             class="form-control text-end"
+                            id="costPerUnit"
                             value="0"
                             required
                         >
@@ -100,6 +102,7 @@
                             step="0.01"
                             name="price_per_unit"
                             class="form-control text-end"
+                            id="pricePerUnit"
                             value="0"
                             required
                         >
@@ -337,4 +340,46 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Autocompletar fecha hoy si el input está vacío
+    document.querySelectorAll('input[data-autotoday="1"]').forEach(function(input) {
+        if (!input.value) {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, "0");
+            const day = String(today.getDate()).padStart(2, "0");
+            input.value = `${year}-${month}-${day}`;
+        }
+    });
+
+    // Mapa de productos { nombre: {cost, price} } enviado desde Flask
+    const productData = {{ product_mapping|tojson }};
+
+    const select = document.getElementById("productSelect");
+    const costInput = document.getElementById("costPerUnit");
+    const priceInput = document.getElementById("pricePerUnit");
+    const productInput = document.getElementById("productInput");
+
+    if (select && costInput && priceInput) {
+        select.addEventListener("change", function() {
+            const selectedName = this.value;
+            if (selectedName && productData[selectedName]) {
+                const info = productData[selectedName];
+                costInput.value = info.cost.toFixed(2);
+                priceInput.value = info.price.toFixed(2);
+
+                // Si el campo de texto de producto está vacío, lo rellenamos con el nombre
+                if (productInput && !productInput.value) {
+                    productInput.value = selectedName;
+                }
+            }
+        });
+    }
+});
+</script>
 {% endblock %}
