@@ -6,137 +6,200 @@
 <div class="row">
     <div class="col-12">
         <div class="card p-4 mb-4">
-            <h2 class="mb-3 text-accent">Dashboard de rendimiento</h2>
-            <p class="text-secondary-custom text-center mb-3">
-                Visualiza tus resultados por producto, por semana y por usuario del sistema.
-                Usa los filtros de fecha o los presets rápidos para analizar diferentes periodos.
-            </p>
-
-            <!-- FILTROS -->
-            <form method="get" action="{{ url_for('dashboard') }}" class="mb-3">
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-3 col-6">
-                        <label class="form-label text-secondary-custom">Desde</label>
-                        <input
-                            type="date"
-                            name="date_from"
-                            class="form-control text-center"
-                            value="{{ date_from or '' }}"
-                        >
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <label class="form-label text-secondary-custom">Hasta</label>
-                        <input
-                            type="date"
-                            name="date_to"
-                            class="form-control text-center"
-                            value="{{ date_to or '' }}"
-                        >
-                    </div>
-                    <div class="col-md-3 col-12">
-                        <label class="form-label text-secondary-custom">Presets rápidos</label>
-                        <div class="d-flex flex-wrap gap-2">
-                            <button type="submit" name="preset" value="week" class="btn btn-outline-light btn-sm flex-grow-1">
-                                Última semana
-                            </button>
-                            <button type="submit" name="preset" value="4weeks" class="btn btn-outline-light btn-sm flex-grow-1">
-                                Últimas 4 semanas
-                            </button>
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
+                <div>
+                    <h2 class="mb-1 text-accent">Dashboard de rendimiento</h2>
+                    <p class="text-secondary-custom mb-0">
+                        Resumen visual de tus ventas, ganancias, tickets promedio y comportamiento por producto, semana y usuario.
+                    </p>
+                </div>
+                <form method="get" action="{{ url_for('dashboard') }}" class="mt-3 mt-md-0">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-auto">
+                            <label class="form-label text-secondary-custom mb-1">Desde</label>
+                            <input
+                                type="date"
+                                name="date_from"
+                                class="form-control text-center"
+                                value="{{ date_from or '' }}"
+                            >
                         </div>
-                        <div class="d-flex flex-wrap gap-2 mt-2">
-                            <button type="submit" name="preset" value="month" class="btn btn-outline-light btn-sm flex-grow-1">
-                                Este mes
-                            </button>
-                            <button type="submit" name="preset" value="year" class="btn btn-outline-light btn-sm flex-grow-1">
-                                Este año
-                            </button>
+                        <div class="col-auto">
+                            <label class="form-label text-secondary-custom mb-1">Hasta</label>
+                            <input
+                                type="date"
+                                name="date_to"
+                                class="form-control text-center"
+                                value="{{ date_to or '' }}"
+                            >
                         </div>
-                    </div>
-                    <div class="col-md-3 col-12">
-                        <label class="form-label text-secondary-custom">&nbsp;</label>
-                        <div class="d-flex flex-wrap gap-2">
-                            <button type="submit" class="btn btn-primary flex-grow-1">
+                        <div class="col-auto">
+                            <label class="form-label text-secondary-custom mb-1 d-block">Rango rápido</label>
+                            <div class="btn-group">
+                                <button type="submit" name="preset" value="week"
+                                        class="btn btn-sm btn-outline-light {% if preset == 'week' %}active{% endif %}">
+                                    7 días
+                                </button>
+                                <button type="submit" name="preset" value="4weeks"
+                                        class="btn btn-sm btn-outline-light {% if preset == '4weeks' %}active{% endif %}">
+                                    4 semanas
+                                </button>
+                                <button type="submit" name="preset" value="month"
+                                        class="btn btn-sm btn-outline-light {% if preset == 'month' %}active{% endif %}">
+                                    Mes
+                                </button>
+                                <button type="submit" name="preset" value="year"
+                                        class="btn btn-sm btn-outline-light {% if preset == 'year' %}active{% endif %}">
+                                    Año
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <label class="form-label text-secondary-custom mb-1 d-block">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-funnel me-1"></i> Aplicar
                             </button>
-                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light flex-grow-1">
-                                <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar
-                            </a>
                         </div>
                     </div>
-                </div>
-            </form>
+                </form>
+            </div>
 
-            <!-- RESUMEN -->
-            <div class="row text-center mt-3">
-                <div class="col-md-4 col-12 mb-2">
-                    <p class="text-secondary-custom">
-                        Ganancia total (₡)<br>
-                        <span class="text-accent">{{ "%.2f"|format(total_ganancia) }}</span>
-                    </p>
+            <!-- ALERTAS (E) -->
+            {% if alert_no_data %}
+                <div class="alert alert-warning text-center mb-2">
+                    No hay datos de ventas en el rango seleccionado. Ajusta las fechas o realiza nuevas ventas.
                 </div>
-                <div class="col-md-4 col-6 mb-2">
-                    <p class="text-secondary-custom">
-                        Rango desde<br>
-                        <span class="text-accent">{{ date_from or "Sin límite" }}</span>
-                    </p>
+            {% endif %}
+
+            {% if alert_pending %}
+                <div class="alert alert-danger text-center mb-2">
+                    Tienes <strong>{{ pending_count }}</strong> ventas pendientes por un total de
+                    <strong>₡{{ "%.2f"|format(pending_revenue) }}</strong>. Revisa cobros y estatus.
                 </div>
-                <div class="col-md-4 col-6 mb-2">
-                    <p class="text-secondary-custom">
-                        Rango hasta<br>
-                        <span class="text-accent">{{ date_to or "Sin límite" }}</span>
-                    </p>
+            {% endif %}
+
+            {% if alert_low_margin and not alert_no_data %}
+                <div class="alert alert-warning text-center mb-0">
+                    Tu margen de ganancia en este período es de
+                    <strong>{{ "%.2f"|format(margin_percent) }}%</strong>, por debajo del objetivo sugerido de
+                    <strong>15%</strong>. Considera revisar precios y costos.
                 </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- KPIs SUPERIORES -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+        <div class="card p-3 h-100 text-center">
+            <p class="text-secondary-custom mb-1">Ventas (registros)</p>
+            <h3 class="mb-1 text-accent">{{ total_ventas }}</h3>
+            <small class="text-secondary-custom">Total de operaciones en el rango seleccionado.</small>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card p-3 h-100 text-center">
+            <p class="text-secondary-custom mb-1">Ingresos totales (₡)</p>
+            <h3 class="mb-1 text-accent">{{ "%.2f"|format(total_revenue) }}</h3>
+            <small class="text-secondary-custom">Suma de todos los montos vendidos.</small>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card p-3 h-100 text-center">
+            <p class="text-secondary-custom mb-1">Ganancia total (₡)</p>
+            <h3 class="mb-1 text-accent">{{ "%.2f"|format(total_ganancia) }}</h3>
+            <small class="text-secondary-custom">Ingresos menos costos.</small>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card p-3 h-100 text-center">
+            <p class="text-secondary-custom mb-1">Ticket promedio (₡)</p>
+            <h3 class="mb-1 text-accent">{{ "%.2f"|format(avg_ticket) }}</h3>
+            <small class="text-secondary-custom">Promedio por venta.</small>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+        <div class="card p-3 h-100 text-center">
+            <p class="text-secondary-custom mb-1">Margen (%)</p>
+            <h3 class="mb-1 text-accent">{{ "%.2f"|format(margin_percent) }}%</h3>
+            <small class="text-secondary-custom">Ganancia / ingresos del período.</small>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card p-3 h-100 text-center">
+            <p class="text-secondary-custom mb-1">Pagado (₡)</p>
+            <h3 class="mb-1 text-accent">{{ "%.2f"|format(paid_revenue) }}</h3>
+            <small class="text-secondary-custom">Monto efectivamente cobrado.</small>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card p-3 h-100 text-center">
+            <p class="text-secondary-custom mb-1">Pendiente (₡)</p>
+            <h3 class="mb-1 text-accent">{{ "%.2f"|format(pending_revenue) }}</h3>
+            <small class="text-secondary-custom">Ventas aún por cobrar.</small>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card p-3 h-100 text-center">
+            <p class="text-secondary-custom mb-1">Costo total (₡)</p>
+            <h3 class="mb-1 text-accent">{{ "%.2f"|format(total_cost) }}</h3>
+            <small class="text-secondary-custom">Base de costos del período.</small>
+        </div>
+    </div>
+</div>
+
+<!-- FILA DE GRÁFICOS 1: TOP PRODUCTOS + PAGADO VS PENDIENTE -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card p-3 h-100">
+            <h4 class="mb-2 text-accent text-center">Top productos por ganancia</h4>
+            <p class="text-secondary-custom text-center mb-3">
+                Muestra los productos que más aporte de ganancia tienen en el rango seleccionado.
+            </p>
+            <div class="chart-container" style="position: relative; height: 260px;">
+                <canvas id="topProductsChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card p-3 h-100">
+            <h4 class="mb-2 text-accent text-center">Distribución Pagado vs Pendiente</h4>
+            <p class="text-secondary-custom text-center mb-3">
+                Relación entre montos cobrados y montos aún pendientes.
+            </p>
+            <div class="chart-container" style="position: relative; height: 260px;">
+                <canvas id="paidPendingChart"></canvas>
             </div>
         </div>
     </div>
 </div>
 
-<!-- GRÁFICOS -->
-<div class="row">
-    <!-- Top productos (dona) -->
-    <div class="col-lg-4 col-md-6 col-12 mb-4">
-        <div class="card p-3 h-100 d-flex flex-column justify-content-between">
-            <h4 class="mb-3 text-accent text-center">Top productos por ganancia</h4>
-            <div class="d-flex justify-content-center">
-                <div style="max-width: 320px; width: 100%;">
-                    <canvas id="chartTopProductos"></canvas>
-                </div>
-            </div>
-            <p class="text-secondary-custom text-center mt-3 mb-0">
-                Muestra los productos con mayor aporte a la ganancia total
-                en el rango seleccionado.
+<!-- FILA DE GRÁFICOS 2: GANANCIA SEMANAL + GANANCIA POR USUARIO -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card p-3 h-100">
+            <h4 class="mb-2 text-accent text-center">Ganancia semanal</h4>
+            <p class="text-secondary-custom text-center mb-3">
+                Evolución de la ganancia agregada por semana (formato Año-Semana ISO).
             </p>
+            <div class="chart-container" style="position: relative; height: 260px;">
+                <canvas id="weeklyProfitChart"></canvas>
+            </div>
         </div>
     </div>
-
-    <!-- Ganancia semanal -->
-    <div class="col-lg-4 col-md-6 col-12 mb-4">
-        <div class="card p-3 h-100 d-flex flex-column justify-content-between">
-            <h4 class="mb-3 text-accent text-center">Distribución de ganancias por semana</h4>
-            <div class="d-flex justify-content-center">
-                <div style="max-width: 380px; width: 100%;">
-                    <canvas id="chartSemanas"></canvas>
-                </div>
-            </div>
-            <p class="text-secondary-custom text-center mt-3 mb-0">
-                Visualiza cómo evoluciona tu ganancia semana a semana.
+    <div class="col-md-6">
+        <div class="card p-3 h-100">
+            <h4 class="mb-2 text-accent text-center">Ganancia por usuario</h4>
+            <p class="text-secondary-custom text-center mb-3">
+                Comparativa de ganancia atribuida a cada usuario del sistema.
             </p>
-        </div>
-    </div>
-
-    <!-- Ganancia por usuario (dona) -->
-    <div class="col-lg-4 col-md-12 col-12 mb-4">
-        <div class="card p-3 h-100 d-flex flex-column justify-content-between">
-            <h4 class="mb-3 text-accent text-center">Ganancia por usuario</h4>
-            <div class="d-flex justify-content-center">
-                <div style="max-width: 320px; width: 100%;">
-                    <canvas id="chartUsuarios"></canvas>
-                </div>
+            <div class="chart-container" style="position: relative; height: 260px;">
+                <canvas id="userProfitChart"></canvas>
             </div>
-            <p class="text-secondary-custom text-center mt-3 mb-0">
-                Compara el aporte de cada usuario del sistema a la ganancia
-                total en el periodo seleccionado.
-            </p>
         </div>
     </div>
 </div>
@@ -146,30 +209,39 @@
 {% block extra_scripts %}
 {{ super() }}
 <script>
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", function () {
+    // Datos desde Flask
     const topLabels = {{ top_labels|tojson }};
     const topValues = {{ top_values|tojson }};
+
+    const paidPendingLabels = {{ paid_pending_labels|tojson }};
+    const paidPendingValues = {{ paid_pending_values|tojson }};
+
     const weekLabels = {{ week_labels|tojson }};
     const weekValues = {{ week_values|tojson }};
+
     const userLabels = {{ user_labels|tojson }};
     const userValues = {{ user_values|tojson }};
 
-    // Gráfico dona: top productos
-    const ctxTop = document.getElementById('chartTopProductos');
-    if (ctxTop && topLabels.length > 0) {
-        new Chart(ctxTop, {
-            type: 'doughnut',
+    // Helper para crear un gráfico de dona
+    function createDoughnutChart(ctx, labels, data) {
+        return new Chart(ctx, {
+            type: "doughnut",
             data: {
-                labels: topLabels,
+                labels: labels,
                 datasets: [{
-                    data: topValues
+                    data: data,
+                    borderWidth: 1
                 }]
             },
             options: {
+                responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
+                        position: "bottom",
                         labels: {
-                            color: '#ffffff'
+                            color: "#e0e0e0",
                         }
                     }
                 }
@@ -177,61 +249,99 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    // Gráfico barras: ganancias por semana
-    const ctxSemanas = document.getElementById('chartSemanas');
-    if (ctxSemanas && weekLabels.length > 0) {
-        new Chart(ctxSemanas, {
-            type: 'bar',
+    // Helper para crear gráfico de líneas
+    function createLineChart(ctx, labels, data) {
+        return new Chart(ctx, {
+            type: "line",
             data: {
-                labels: weekLabels,
+                labels: labels,
                 datasets: [{
-                    label: 'Ganancia (₡)',
-                    data: weekValues
+                    label: "Ganancia (₡)",
+                    data: data,
+                    tension: 0.3,
+                    fill: false,
+                    borderWidth: 2,
+                    pointRadius: 3
                 }]
             },
             options: {
-                scales: {
-                    x: {
-                        ticks: { color: '#ffffff' },
-                        grid: { color: '#333333' }
-                    },
-                    y: {
-                        ticks: { color: '#ffffff' },
-                        grid: { color: '#333333' }
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
                     }
                 },
-                plugins: {
-                    legend: {
-                        labels: {
-                            color: '#ffffff'
-                        }
+                scales: {
+                    x: {
+                        ticks: { color: "#cccccc" },
+                        grid: { display: false }
+                    },
+                    y: {
+                        ticks: { color: "#cccccc" },
+                        grid: { color: "rgba(255,255,255,0.08)" }
                     }
                 }
             }
         });
     }
 
-    // Gráfico dona: ganancia por usuario
-    const ctxUsuarios = document.getElementById('chartUsuarios');
-    if (ctxUsuarios && userLabels.length > 0) {
-        new Chart(ctxUsuarios, {
-            type: 'doughnut',
+    // Helper para crear gráfico de barras
+    function createBarChart(ctx, labels, data) {
+        return new Chart(ctx, {
+            type: "bar",
             data: {
-                labels: userLabels,
+                labels: labels,
                 datasets: [{
-                    data: userValues
+                    label: "Ganancia (₡)",
+                    data: data,
+                    borderWidth: 1
                 }]
             },
             options: {
+                responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        labels: {
-                            color: '#ffffff'
-                        }
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: "#cccccc" },
+                        grid: { display: false }
+                    },
+                    y: {
+                        ticks: { color: "#cccccc" },
+                        grid: { color: "rgba(255,255,255,0.08)" }
                     }
                 }
             }
         });
+    }
+
+    // Gráfico Top Productos (dona)
+    const topCanvas = document.getElementById("topProductsChart");
+    if (topCanvas && topLabels.length > 0) {
+        createDoughnutChart(topCanvas.getContext("2d"), topLabels, topValues);
+    }
+
+    // Gráfico Pagado vs Pendiente (dona)
+    const paidPendingCanvas = document.getElementById("paidPendingChart");
+    if (paidPendingCanvas && paidPendingLabels.length > 0) {
+        createDoughnutChart(paidPendingCanvas.getContext("2d"), paidPendingLabels, paidPendingValues);
+    }
+
+    // Gráfico Ganancia semanal (línea)
+    const weeklyCanvas = document.getElementById("weeklyProfitChart");
+    if (weeklyCanvas && weekLabels.length > 0) {
+        createLineChart(weeklyCanvas.getContext("2d"), weekLabels, weekValues);
+    }
+
+    // Gráfico Ganancia por usuario (barras)
+    const userCanvas = document.getElementById("userProfitChart");
+    if (userCanvas && userLabels.length > 0) {
+        createBarChart(userCanvas.getContext("2d"), userLabels, userValues);
     }
 });
 </script>
