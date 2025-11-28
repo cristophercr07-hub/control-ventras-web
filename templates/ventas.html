@@ -43,11 +43,33 @@
                                 </div>
                             </div>
 
+                            <!-- CLIENTE DESDE CATÁLOGO -->
                             <div class="row g-2 mb-2">
                                 <div class="col-12">
                                     <label class="small-label mb-1">Cliente</label>
-                                    <input type="text" name="name" class="form-control form-control-sm"
-                                           placeholder="Nombre del cliente" value="{{ request.form.name or '' }}">
+                                    <select name="customer_id" class="form-select form-select-sm">
+                                        <option value="">-- Seleccionar cliente --</option>
+                                        {% for c in customers %}
+                                            <option value="{{ c.id }}">{{ c.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <small class="text-secondary-custom">
+                                        Para agregar un nuevo cliente ve a la pestaña <b>Clientes</b>.
+                                    </small>
+                                </div>
+                            </div>
+
+                            <!-- FECHA DE PAGO (SOLO PARA PENDIENTES) -->
+                            <div class="row g-2 mb-2" id="payment_due_container" style="display:none;">
+                                <div class="col-12">
+                                    <label class="small-label mb-1">Fecha de pago (vencimiento)</label>
+                                    <input type="date"
+                                           name="payment_due_date"
+                                           id="payment_due_date"
+                                           class="form-control form-control-sm">
+                                    <small class="text-secondary-custom">
+                                        Selecciona la fecha en que esperas recibir el pago de esta venta pendiente.
+                                    </small>
                                 </div>
                             </div>
 
@@ -87,26 +109,6 @@
                                     <input type="number" step="1" min="1" name="quantity"
                                            class="form-control form-control-sm text-end"
                                            value="{{ request.form.quantity or 1 }}">
-                                </div>
-                            </div>
-
-                            <!-- NUEVA FILA: fecha de vencimiento (solo si Pendiente) -->
-                            <div class="row g-2 mb-3">
-                                <div class="col-12">
-                                    <label class="small-label mb-1">Fecha de vencimiento (solo si está pendiente)</label>
-                                    <div class="input-group input-group-sm">
-                                        <span class="input-group-text bg-accent text-dark fw-bold">
-                                            <i class="bi bi-calendar-event"></i>
-                                        </span>
-                                        <input type="date"
-                                               name="due_date"
-                                               id="due_date_input"
-                                               class="form-control form-control-sm"
-                                               value="{{ request.form.due_date or '' }}">
-                                    </div>
-                                    <small class="text-secondary-custom">
-                                        Usa esta fecha para que el sistema te alerte cuando el pago esté por vencer o vencido.
-                                    </small>
                                 </div>
                             </div>
 
@@ -262,13 +264,12 @@
                             <th>Cliente</th>
                             <th>Producto</th>
                             <th>Estado</th>
+                            <th>Fecha pago</th>
                             <th>Costo U. (₡)</th>
                             <th>Precio U. (₡)</th>
                             <th>Cant.</th>
                             <th>Total (₡)</th>
                             <th>Ganancia (₡)</th>
-                            <th>Vence</th>
-                            <th>Pagado el</th>
                             <th>Usuario</th>
                             <th>Comentario</th>
                             <th style="width: 90px;">Acciones</th>
@@ -288,17 +289,14 @@
                                         <span class="badge bg-warning text-dark">Pendiente</span>
                                     {% endif %}
                                 </td>
+                                <td class="text-center">
+                                    {{ s.payment_due_date.isoformat() if s.payment_due_date else '' }}
+                                </td>
                                 <td class="text-end">₡{{ s.cost_per_unit|format_num }}</td>
                                 <td class="text-end">₡{{ s.price_per_unit|format_num }}</td>
                                 <td class="text-end">{{ s.quantity }}</td>
                                 <td class="text-end">₡{{ s.total|format_num }}</td>
                                 <td class="text-end">₡{{ s.profit|format_num }}</td>
-                                <td class="text-center">
-                                    {{ s.due_date.isoformat() if s.due_date else '' }}
-                                </td>
-                                <td class="text-center">
-                                    {{ s.paid_date.isoformat() if s.paid_date else '' }}
-                                </td>
                                 <td class="text-center">
                                     {{ s.user.username if s.user else '' }}
                                 </td>
@@ -306,30 +304,30 @@
                                     {{ s.comment or '' }}
                                 </td>
                                 <td class="text-center">
-                                    {% if s.status == 'Pendiente' %}
+                                    <div class="d-flex justify-content-center gap-1">
+                                        {% if s.status == 'Pendiente' %}
+                                            <form method="post"
+                                                  action="{{ url_for('mark_sale_paid', sale_id=s.id) }}"
+                                                  onsubmit="return confirm('¿Marcar esta venta como pagada?');">
+                                                <button type="submit" class="btn btn-outline-success btn-sm py-0 px-2">
+                                                    <i class="bi bi-check2-circle"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
                                         <form method="post"
-                                              action="{{ url_for('mark_sale_paid', sale_id=s.id) }}"
-                                              class="d-inline"
-                                              onsubmit="return confirm('¿Marcar como pagada la venta #{{ s.id }}?');">
-                                            <button type="submit" class="btn btn-success btn-sm py-0 px-2 me-1">
-                                                <i class="bi bi-check2-circle"></i>
+                                              action="{{ url_for('delete_sale', sale_id=s.id) }}"
+                                              onsubmit="return confirmDeleteSale('{{ s.id }}');">
+                                            <button type="submit" class="btn btn-outline-light btn-sm py-0 px-2">
+                                                <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
-                                    {% endif %}
-                                    <form method="post"
-                                          action="{{ url_for('delete_sale', sale_id=s.id) }}"
-                                          class="d-inline"
-                                          onsubmit="return confirmDeleteSale('{{ s.id }}');">
-                                        <button type="submit" class="btn btn-outline-light btn-sm py-0 px-2">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
                         {% else %}
                             <tr>
-                                <td colspan="14" class="text-center text-secondary-custom">
+                                <td colspan="13" class="text-center text-secondary-custom">
                                     No hay ventas registradas con los filtros actuales.
                                 </td>
                             </tr>
@@ -353,8 +351,6 @@ document.addEventListener("DOMContentLoaded", function() {
     const productInput = document.getElementById("product_input");
     const costInput = document.getElementById("cost_per_unit");
     const priceInput = document.getElementById("price_per_unit");
-    const statusSelect = document.getElementById("status_select");
-    const dueDateInput = document.getElementById("due_date_input");
 
     if (select) {
         select.addEventListener("change", function() {
@@ -367,13 +363,27 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    // Si el estado no es "Pendiente", limpiamos la fecha de vencimiento
-    if (statusSelect && dueDateInput) {
-        statusSelect.addEventListener("change", function() {
-            if (this.value !== "Pendiente") {
-                dueDateInput.value = "";
+    const statusSelect = document.getElementById("status_select");
+    const paymentContainer = document.getElementById("payment_due_container");
+    const paymentInput = document.getElementById("payment_due_date");
+
+    function updatePaymentVisibility() {
+        if (!statusSelect || !paymentContainer) return;
+        if (statusSelect.value === "Pendiente") {
+            paymentContainer.style.display = "flex";
+            if (paymentInput) paymentInput.required = false; // opcional
+        } else {
+            paymentContainer.style.display = "none";
+            if (paymentInput) {
+                paymentInput.value = "";
+                paymentInput.required = false;
             }
-        });
+        }
+    }
+
+    if (statusSelect) {
+        statusSelect.addEventListener("change", updatePaymentVisibility);
+        updatePaymentVisibility();
     }
 });
 
