@@ -1198,6 +1198,8 @@ def dashboard():
     alerts = []
     overdue_total = 0.0
     overdue_count = 0
+    upcoming_total = 0.0
+    upcoming_count = 0
 
     today = datetime.date.today()
 
@@ -1240,7 +1242,36 @@ def dashboard():
             ),
         })
 
-    # 2) Utilidad semanal por debajo de un umbral objetivo (por usuario)
+    # 2) Ventas pendientes con fecha de pago próxima (recordatorios)
+    if user.is_admin:
+        upcoming_query = Sale.query.filter(
+            Sale.status == "Pendiente",
+            Sale.payment_due_date != None,
+            Sale.payment_due_date >= today
+        )
+    else:
+        upcoming_query = Sale.query.filter(
+            Sale.user_id == user.id,
+            Sale.status == "Pendiente",
+            Sale.payment_due_date != None,
+            Sale.payment_due_date >= today
+        )
+
+    upcoming_sales = upcoming_query.all()
+    if upcoming_sales:
+        upcoming_total = sum(float(s.total or 0) for s in upcoming_sales)
+        upcoming_count = len(upcoming_sales)
+        alerts.append({
+            "level": "info",
+            "title": "Cobros próximos",
+            "message": (
+                f"Tienes {upcoming_count} ventas pendientes con fecha de pago futura, "
+                f"por un total de ₡{format_num(upcoming_total)}. "
+                "Asegúrate de dar seguimiento a estos cobros."
+            ),
+        })
+
+    # 3) Utilidad semanal por debajo de un umbral objetivo (por usuario)
     seven_days_ago = today - datetime.timedelta(days=7)
     try:
         if user.is_admin:
@@ -1296,6 +1327,8 @@ def dashboard():
         min_weekly_profit=min_weekly_profit,
         overdue_total=overdue_total,
         overdue_count=overdue_count,
+        upcoming_total=upcoming_total,
+        upcoming_count=upcoming_count,
     )
 
 
