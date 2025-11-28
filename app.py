@@ -57,7 +57,7 @@ MIN_MARGIN_PERCENT = 7.0
 @app.template_filter("format_num")
 def format_num(value):
     """
-    Formatea un número como ₡1.234,56 (formato más legible).
+    Formatea un número como 1.234,56 (formato más legible).
     """
     try:
         num = float(value)
@@ -157,7 +157,6 @@ with app.app_context():
     # Asegurar columna due_date (fecha de vencimiento)
     if "due_date" not in cols:
         try:
-            # DATE es compatible tanto en SQLite como en PostgreSQL
             db.session.execute("ALTER TABLE sale ADD COLUMN due_date DATE")
             db.session.commit()
         except Exception:
@@ -612,6 +611,22 @@ def delete_sale(sale_id):
     return redirect(url_for("ventas", success="Venta eliminada correctamente."))
 
 
+@app.post("/ventas/<int:sale_id>/mark-paid")
+def mark_sale_paid(sale_id):
+    """
+    Marca una venta como Pagada y limpia su fecha de vencimiento.
+    Se usa desde la tabla de ventas (botón 'Marcar pagada').
+    """
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    sale = Sale.query.get_or_404(sale_id)
+    sale.status = "Pagado"
+    sale.due_date = None
+    db.session.commit()
+    return redirect(url_for("ventas", success="Venta marcada como pagada."))
+
+
 @app.route("/ventas/export")
 def ventas_export():
     if not session.get("user_id"):
@@ -667,7 +682,7 @@ def ventas_export():
 
 
 # ---------------------------------------------------------
-# CONTROL DE FLUJO (GASTOS / REINVERSIÓN)
+# CONTROL DE FLUJO (GASTOS / REINVERSIONES)
 # ---------------------------------------------------------
 
 @app.route("/flujo", methods=["GET", "POST"])
