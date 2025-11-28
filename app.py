@@ -15,7 +15,7 @@ from flask import (
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect
 
 # ---------------------------------------------------------
 # CONFIGURACIÓN BÁSICA
@@ -23,33 +23,50 @@ from sqlalchemy import inspect, text
 
 app = Flask(__name__)
 
-# Configuración de la base de datos:
-# - En Render: usar DATABASE_URL (Postgres)
-# - En local: usar SQLite (ventas.db)
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if DATABASE_URL:
-    # Render a veces entrega postgres:// y SQLAlchemy requiere postgresql://
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
-else:
-    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-    db_path = os.path.join(BASE_DIR, "ventas.db")
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
-
-# SECRET_KEY desde variable de entorno (más seguro en producción)
+# Configuración de SECRET_KEY
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-key-change-me")
-
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Cookies de sesión más seguras
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
+# Base de datos: PostgreSQL (Render) o SQLite (local)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL:
+    # Render suele dar "postgres://", SQLAlchemy requiere "postgresql+psycopg2://"
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+else:
+    # Fallback local
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+    db_path = os.path.join(BASE_DIR, "ventas.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+
 db = SQLAlchemy(app)
 
 # Margen mínimo de utilidad para la calculadora (7 %)
 MIN_MARGIN_PERCENT = 7.0
+
+
+# ---------------------------------------------------------
+# FILTRO JINJA PARA FORMATEAR NÚMEROS
+# ---------------------------------------------------------
+
+@app.template_filter("format_num")
+def format_num(value):
+    """
+    Formatea un número como ₡1.234,56 (formato más legible).
+    """
+    try:
+        num = float(value)
+        # Primero 1,234.56 -> luego intercambiamos para estilo "es"
+        s = f"{num:,.2f}"
+        s = s.replace(",", "_").replace(".", ",").replace("_", ".")
+        return s
+    except Exception:
+        return value
 
 
 # ---------------------------------------------------------
@@ -84,15 +101,12 @@ class Sale(db.Model):
     profit = db.Column(db.Float, default=0.0)
     comment = db.Column(db.String(255))
 
+    # Fecha de vencimiento (para ventas pendientes)
+    due_date = db.Column(db.Date, nullable=True)
+
     # Usuario del sistema que registró la venta
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     user = db.relationship("User", backref="sales", lazy=True)
-
-    # NUEVOS CAMPOS para cobranzas
-    # Fecha de vencimiento del pago (cuando está Pendiente)
-    due_date = db.Column(db.Date, nullable=True)
-    # Fecha en que efectivamente se pagó (cuando se registre pago)
-    paid_date = db.Column(db.Date, nullable=True)
 
 
 class Expense(db.Model):
@@ -122,59 +136,36 @@ def require_login():
     return None
 
 
-# Filtro para formatear números con miles y dos decimales
-@app.template_filter("format_num")
-def format_num_filter(value):
-    try:
-        value = float(value or 0)
-    except (TypeError, ValueError):
-        value = 0.0
-    # Formato con separador de miles y 2 decimales, estilo "1.234,56"
-    formatted = f"{value:,.2f}"
-    formatted = formatted.replace(",", "X").replace(".", ",").replace("X", ".")
-    return formatted
-
-
 # ---------------------------------------------------------
-# INICIALIZACIÓN DE LA BD, MIGRACIONES BÁSICAS Y USUARIO ADMIN
+# INICIALIZACIÓN DE LA BD, MIGRACIONES SUAVES Y USUARIO ADMIN
 # ---------------------------------------------------------
 
 with app.app_context():
     db.create_all()
 
     inspector = inspect(db.engine)
-    try:
-        cols = [col["name"] for col in inspector.get_columns("sale")]
-    except Exception:
-        cols = []
+    cols = [col["name"] for col in inspector.get_columns("sale")]
 
-    # Asegurar columna user_id (instalaciones viejas)
+    # Asegurar columna user_id (instalaciones anteriores)
     if "user_id" not in cols:
         try:
-            db.session.execute(text("ALTER TABLE sale ADD COLUMN user_id INTEGER"))
+            db.session.execute("ALTER TABLE sale ADD COLUMN user_id INTEGER")
             db.session.commit()
         except Exception:
             db.session.rollback()
 
-    # Asegurar columna due_date
+    # Asegurar columna due_date (fecha de vencimiento)
     if "due_date" not in cols:
         try:
-            db.session.execute(text("ALTER TABLE sale ADD COLUMN due_date DATE"))
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-
-    # Asegurar columna paid_date
-    if "paid_date" not in cols:
-        try:
-            db.session.execute(text("ALTER TABLE sale ADD COLUMN paid_date DATE"))
+            # DATE es compatible tanto en SQLite como en PostgreSQL
+            db.session.execute("ALTER TABLE sale ADD COLUMN due_date DATE")
             db.session.commit()
         except Exception:
             db.session.rollback()
 
     # Crear o actualizar usuario admin usando variables de entorno
     admin_username = os.environ.get("ADMIN_USER", "admin")
-    admin_password = os.environ.get("ADMIN_PASS")  # si no está, fallback (solo para desarrollo)
+    admin_password = os.environ.get("ADMIN_PASS")  # en producción debe estar definida
 
     admin_user = User.query.filter_by(username=admin_username).first()
 
@@ -247,7 +238,6 @@ def usuarios():
     if not session.get("is_admin"):
         return redirect(url_for("ventas"))
 
-    # Mensajes desde URL (delete) + POST (create)
     error = request.args.get("error")
     success = request.args.get("success")
 
@@ -518,9 +508,11 @@ def ventas():
             quantity = int(request.form.get("quantity") or 1)
             comment = (request.form.get("comment") or "").strip()
 
-            # Nueva fecha de vencimiento (solo si Pendiente)
-            due_date_str = request.form.get("due_date")
+            # Fecha de vencimiento (solo si Pendiente)
+            due_date_str = request.form.get("due_date") or ""
             due_date = parse_date(due_date_str) if due_date_str else None
+            if status == "Pendiente" and not due_date:
+                raise ValueError("Para ventas pendientes debes indicar una fecha de vencimiento.")
 
             if not name:
                 raise ValueError("El nombre del cliente es obligatorio.")
@@ -531,9 +523,6 @@ def ventas():
 
             total = price_per_unit * quantity
             profit = (price_per_unit - cost_per_unit) * quantity
-
-            # Si la venta se registra como Pagado, podemos guardar paid_date = date
-            paid_date = date if status == "Pagado" else None
 
             sale = Sale(
                 date=date,
@@ -548,7 +537,6 @@ def ventas():
                 comment=comment,
                 user_id=session.get("user_id"),
                 due_date=due_date,
-                paid_date=paid_date,
             )
             db.session.add(sale)
             db.session.commit()
@@ -654,6 +642,7 @@ def ventas_export():
             "Nombre / Cliente": s.name,
             "Producto": s.product,
             "Estado": s.status,
+            "Fecha vencimiento": s.due_date.isoformat() if s.due_date else "",
             "Costo por unidad": s.cost_per_unit,
             "Precio por unidad": s.price_per_unit,
             "Cantidad": s.quantity,
@@ -661,8 +650,6 @@ def ventas_export():
             "Ganancia": s.profit,
             "Comentario": s.comment or "",
             "Usuario": s.user.username if getattr(s, "user", None) else "",
-            "Fecha vencimiento": s.due_date.isoformat() if getattr(s, "due_date", None) else "",
-            "Fecha pago": s.paid_date.isoformat() if getattr(s, "paid_date", None) else "",
         })
 
     df = pd.DataFrame(rows)
@@ -832,7 +819,7 @@ def delete_expense(expense_id):
 
 
 # ---------------------------------------------------------
-# DASHBOARD (METRICAS + ALERTAS)
+# DASHBOARD (CON ALERTAS Y PRÓXIMOS COBROS)
 # ---------------------------------------------------------
 
 @app.route("/dashboard")
@@ -915,7 +902,7 @@ def dashboard():
     top_labels = [name for name, _ in top_items]
     top_values = [round(value, 2) for _, value in top_items]
 
-    # Ganancias por semana (ISO week)
+    # Ganancias por semana (ISO week) con manejo robusto de fechas
     profit_by_week = defaultdict(float)
     for s in sales:
         d = s.date
@@ -950,20 +937,17 @@ def dashboard():
     user_values = [round(v, 2) for _, v in user_items]
 
     # -------------------------------------------------
-    # ALERTAS AUTOMÁTICAS
+    # ALERTAS AUTOMÁTICAS (a nivel global, no solo filtrado)
     # -------------------------------------------------
     alerts = []
 
     today = datetime.date.today()
 
-    # 1) Ventas pendientes según fecha de vencimiento
+    # 1) Ventas pendientes con más de 1 día de antigüedad (por fecha de venta)
     pending_sales = Sale.query.filter(Sale.status == "Pendiente").all()
-    overdue = []
-    due_today_list = []
-    upcoming = []
-
+    old_pending = []
     for s in pending_sales:
-        d = s.due_date
+        d = s.date
         if not d:
             continue
         if isinstance(d, datetime.datetime):
@@ -973,48 +957,18 @@ def dashboard():
                 d = datetime.date.fromisoformat(d)
             except Exception:
                 continue
+        if d <= today - datetime.timedelta(days=1):
+            old_pending.append(s)
 
-        delta = (d - today).days
-        if delta < 0:
-            overdue.append(s)
-        elif delta == 0:
-            due_today_list.append(s)
-        elif 0 < delta <= 3:
-            upcoming.append(s)
-
-    if overdue:
-        total_overdue = sum(float(s.total or 0) for s in overdue)
-        alerts.append({
-            "level": "danger",
-            "title": "Pagos vencidos",
-            "message": (
-                f"Tienes {len(overdue)} ventas pendientes con fecha de pago vencida "
-                f"por un monto total aproximado de ₡{total_overdue:,.2f}. "
-                "Da seguimiento urgente a estos cobros."
-            ),
-        })
-
-    if due_today_list:
-        total_today = sum(float(s.total or 0) for s in due_today_list)
+    if old_pending:
+        total_pend_antiguo = sum(float(s.total or 0) for s in old_pending)
         alerts.append({
             "level": "warning",
-            "title": "Pagos que vencen hoy",
+            "title": "Ventas pendientes con antigüedad",
             "message": (
-                f"Hoy vencen {len(due_today_list)} ventas pendientes "
-                f"por un monto total aproximado de ₡{total_today:,.2f}. "
-                "Aprovecha para cobrar en el día."
-            ),
-        })
-
-    if upcoming:
-        total_upcoming = sum(float(s.total or 0) for s in upcoming)
-        alerts.append({
-            "level": "info",
-            "title": "Pagos próximos (3 días)",
-            "message": (
-                f"En los próximos 3 días vencen {len(upcoming)} ventas pendientes "
-                f"por un monto total aproximado de ₡{total_upcoming:,.2f}. "
-                "Planifica tus cobros para esos días."
+                f"Tienes {len(old_pending)} ventas pendientes con más de 1 día "
+                f"por un monto total aproximado de ₡{total_pend_antiguo:,.2f}. "
+                "Revisa los cobros para no perder liquidez."
             ),
         })
 
@@ -1029,6 +983,7 @@ def dashboard():
     except Exception:
         weekly_profit = 0.0
 
+    # Umbral configurable vía variable de entorno (opcional)
     min_weekly_profit_str = os.environ.get("ALERT_WEEKLY_PROFIT_MIN", "").strip()
     try:
         min_weekly_profit = float(min_weekly_profit_str) if min_weekly_profit_str else 0.0
@@ -1045,6 +1000,64 @@ def dashboard():
                 "Considera ajustar precios, volumen de ventas o estructura de gastos."
             ),
         })
+
+    # 3) Alertas por vencimiento (pendientes vencidos por due_date)
+    overdue_by_due_date = []
+    for s in pending_sales:
+        d = s.due_date
+        if not d:
+            continue
+        if isinstance(d, datetime.datetime):
+            d = d.date()
+        if isinstance(d, str):
+            try:
+                d = datetime.date.fromisoformat(d)
+            except Exception:
+                continue
+        if d < today:
+            overdue_by_due_date.append(s)
+
+    if overdue_by_due_date:
+        total_overdue = sum(float(s.total or 0) for s in overdue_by_due_date)
+        alerts.append({
+            "level": "danger",
+            "title": "Cobros vencidos",
+            "message": (
+                f"Tienes {len(overdue_by_due_date)} ventas pendientes con fecha de vencimiento pasada, "
+                f"por un total de aproximadamente ₡{total_overdue:,.2f}. "
+                "Prioriza estos cobros antes de seguir vendiendo a crédito."
+            ),
+        })
+
+    # --------------------------------------------
+    # PRÓXIMOS COBROS (7 días) y COBROS VENCIDOS
+    # --------------------------------------------
+    upcoming_limit = today + datetime.timedelta(days=7)
+
+    upcoming_sales = (
+        Sale.query
+        .filter(
+            Sale.status == "Pendiente",
+            Sale.due_date != None,               # noqa: E711
+            Sale.due_date >= today,
+            Sale.due_date <= upcoming_limit,
+        )
+        .order_by(Sale.due_date.asc())
+        .limit(5)
+        .all()
+    )
+
+    overdue_sales = (
+        Sale.query
+        .filter(
+            Sale.status == "Pendiente",
+            Sale.due_date != None,               # noqa: E711
+            Sale.due_date < today,
+        )
+        .order_by(Sale.due_date.asc())
+        .limit(5)
+        .all()
+    )
 
     return render_template(
         "dashboard.html",
@@ -1067,6 +1080,9 @@ def dashboard():
         alerts=alerts,
         weekly_profit=weekly_profit,
         min_weekly_profit=min_weekly_profit,
+        # panel de cobros:
+        upcoming_sales=upcoming_sales,
+        overdue_sales=overdue_sales,
     )
 
 
@@ -1075,4 +1091,5 @@ def dashboard():
 # ---------------------------------------------------------
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # En local puedes usar debug=True. En Render se usa gunicorn.
+    app.run(host="0.0.0.0", port=5000, debug=True)
