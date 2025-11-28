@@ -15,7 +15,7 @@ from flask import (
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text  # ← IMPORTANTE: text agregado
 
 # ---------------------------------------------------------
 # CONFIGURACIÓN BÁSICA (Postgres en Render, SQLite local)
@@ -64,9 +64,9 @@ def format_num(value):
         value = float(value or 0)
     except (TypeError, ValueError):
         return "0,00"
-    text = f"{value:,.2f}"  # 12,345.67
-    text = text.replace(",", "X").replace(".", ",").replace("X", ".")
-    return text
+    text_num = f"{value:,.2f}"  # 12,345.67
+    text_num = text_num.replace(",", "X").replace(".", ",").replace("X", ".")
+    return text_num
 
 
 # ---------------------------------------------------------
@@ -164,21 +164,21 @@ with app.app_context():
 
     if "user_id" not in cols:
         try:
-            db.session.execute("ALTER TABLE sale ADD COLUMN user_id INTEGER")
+            db.session.execute(text("ALTER TABLE sale ADD COLUMN user_id INTEGER"))
             db.session.commit()
         except Exception:
             db.session.rollback()
 
     if "payment_due_date" not in cols:
         try:
-            db.session.execute("ALTER TABLE sale ADD COLUMN payment_due_date DATE")
+            db.session.execute(text("ALTER TABLE sale ADD COLUMN payment_due_date DATE"))
             db.session.commit()
         except Exception:
             db.session.rollback()
 
     if "paid_at" not in cols:
         try:
-            db.session.execute("ALTER TABLE sale ADD COLUMN paid_at TIMESTAMP")
+            db.session.execute(text("ALTER TABLE sale ADD COLUMN paid_at TIMESTAMP"))
             db.session.commit()
         except Exception:
             db.session.rollback()
