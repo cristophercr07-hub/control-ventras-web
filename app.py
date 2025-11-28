@@ -157,7 +157,7 @@ def is_admin_user():
 def format_num(value):
     """
     Formato amigable:
-    - 1 234 567,89
+    - 1.234.567,89
     Usando punto como separador de miles y coma como decimal.
     """
     try:
@@ -1196,6 +1196,8 @@ def dashboard():
     # ALERTAS AUTOMÁTICAS (a nivel del usuario actual)
     # -------------------------------------------------
     alerts = []
+    overdue_total = 0.0
+    overdue_count = 0
 
     today = datetime.date.today()
 
@@ -1226,6 +1228,8 @@ def dashboard():
 
     if old_pending:
         total_pend_antiguo = sum(float(s.total or 0) for s in old_pending)
+        overdue_total = total_pend_antiguo
+        overdue_count = len(old_pending)
         alerts.append({
             "level": "warning",
             "title": "Ventas pendientes con antigüedad",
@@ -1290,6 +1294,8 @@ def dashboard():
         alerts=alerts,
         weekly_profit=weekly_profit,
         min_weekly_profit=min_weekly_profit,
+        overdue_total=overdue_total,
+        overdue_count=overdue_count,
     )
 
 
