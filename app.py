@@ -225,6 +225,10 @@ with app.app_context():
     if not has_column("client", "user_id"):
         safe_alter("ALTER TABLE client ADD COLUMN user_id INTEGER")
 
+    # 7) notes en client (NUEVO: para arreglar tu error actual)
+    if not has_column("client", "notes"):
+        safe_alter("ALTER TABLE client ADD COLUMN notes VARCHAR(255)")
+
     # Usuario admin desde entorno
     admin_username = os.environ.get("ADMIN_USER", "admin")
     admin_password = os.environ.get("ADMIN_PASS")
