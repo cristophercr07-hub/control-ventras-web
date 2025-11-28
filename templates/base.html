@@ -184,13 +184,12 @@
         }
 
         .table-dark-custom tbody td {
-            font-size: 0.9rem;                 /* un poco más grande */
-            padding: 0.55rem 0.5rem;           /* más altura en filas */
-            text-align: center;                /* centrar por defecto */
+            font-size: 0.9rem;
+            padding: 0.55rem 0.5rem;
+            text-align: center;
             vertical-align: middle;
         }
 
-        /* Forzar que incluso los td con clase text-end queden centrados en estas tablas */
         .table-dark-custom tbody td.text-end {
             text-align: center !important;
         }
@@ -372,7 +371,7 @@
         })();
     </script>
 
-    <!-- Navegación tipo SPA + pestaña activa + lógica Ventas -->
+    <!-- Navegación tipo SPA + pestaña activa + lógica Ventas & Dashboard -->
     <script>
         (function() {
             const content = document.getElementById('app-content');
@@ -425,12 +424,105 @@
                 }
             }
 
+            function initDashboardPage() {
+                if (typeof Chart === 'undefined') return;
+
+                const dataEl = document.getElementById('dashboard_data');
+                if (!dataEl) return;
+
+                let topLabels = [], topData = [],
+                    weekLabels = [], weekData = [],
+                    userLabels = [], userData = [];
+
+                try {
+                    topLabels = JSON.parse(dataEl.dataset.topLabels || '[]');
+                    topData   = JSON.parse(dataEl.dataset.topValues || '[]');
+                    weekLabels = JSON.parse(dataEl.dataset.weekLabels || '[]');
+                    weekData   = JSON.parse(dataEl.dataset.weekValues || '[]');
+                    userLabels = JSON.parse(dataEl.dataset.userLabels || '[]');
+                    userData   = JSON.parse(dataEl.dataset.userValues || '[]');
+                } catch (e) {
+                    // datos inválidos, salir
+                    return;
+                }
+
+                const topCtx = document.getElementById('topProductsChart');
+                if (topCtx && topLabels.length > 0) {
+                    new Chart(topCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: topLabels,
+                            datasets: [{ data: topData }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { position: 'bottom', labels: { color: '#e8f5e9' } }
+                            }
+                        }
+                    });
+                }
+
+                const weekCtx = document.getElementById('weeklyProfitChart');
+                if (weekCtx && weekLabels.length > 0) {
+                    new Chart(weekCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: weekLabels,
+                            datasets: [{
+                                label: 'Ganancia por semana',
+                                data: weekData
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    ticks: { color: '#e8f5e9' },
+                                    grid: { display: false }
+                                },
+                                y: {
+                                    ticks: { color: '#e8f5e9' },
+                                    grid: { color: 'rgba(232,245,233,0.15)' }
+                                }
+                            },
+                            plugins: {
+                                legend: { labels: { color: '#e8f5e9' } }
+                            }
+                        }
+                    });
+                }
+
+                const userCtx = document.getElementById('userProfitChart');
+                if (userCtx && userLabels.length > 0) {
+                    new Chart(userCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: userLabels,
+                            datasets: [{ data: userData }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { position: 'bottom', labels: { color: '#e8f5e9' } }
+                            }
+                        }
+                    });
+                }
+            }
+
             function runPageInits(url) {
                 try {
                     const full = new URL(url, window.location.origin);
                     const path = full.pathname;
                     if (path.startsWith('/ventas')) {
                         initVentasPage();
+                    }
+                    if (path.startsWith('/dashboard')) {
+                        initDashboardPage();
                     }
                 } catch (e) {
                     // ignorar
