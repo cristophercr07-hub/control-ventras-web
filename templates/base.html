@@ -233,6 +233,24 @@
             letter-spacing: 0.03em;
         }
 
+        /* Estilo para el botón del calendario en inputs de fecha */
+        input[type="date"] {
+            position: relative;
+        }
+
+        /* Navegadores WebKit (Chrome, Edge, Safari, iOS) */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            background-color: #66ff88;  /* verde claro tipo botón */
+            border-radius: 4px;
+            padding: 2px;
+            cursor: pointer;
+        }
+
+        input[type="date"].form-control-sm {
+            background-color: #020502;
+            color: var(--text-main);
+        }
+
         @media (max-width: 576px) {
             .navbar-brand {
                 font-size: 1rem;
@@ -442,7 +460,6 @@
                     userLabels = JSON.parse(dataEl.dataset.userLabels || '[]');
                     userData   = JSON.parse(dataEl.dataset.userValues || '[]');
                 } catch (e) {
-                    // datos inválidos, salir
                     return;
                 }
 
