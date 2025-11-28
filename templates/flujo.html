@@ -221,6 +221,7 @@
                             <th>Descripción</th>
                             <th>Tipo</th>
                             <th>Monto (₡)</th>
+                            <th style="width: 60px;">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -231,11 +232,23 @@
                                 <td class="text-center">{{ e.description }}</td>
                                 <td class="text-center">{{ e.category }}</td>
                                 <td class="text-end">₡{{ e.amount|format_num }}</td>
+                                <td class="text-center">
+                                    <form method="post"
+                                          action="{{ url_for('delete_expense', expense_id=e.id) }}"
+                                          onsubmit="return doubleConfirm(
+                                              '¿Seguro que deseas eliminar este movimiento?',
+                                              'Esta acción no se puede deshacer. ¿Confirmas que deseas continuar?'
+                                          );">
+                                        <button type="submit" class="btn btn-outline-light btn-sm py-0 px-2">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
                             {% endfor %}
                         {% else %}
                             <tr>
-                                <td colspan="4" class="text-center text-secondary-custom">
+                                <td colspan="5" class="text-center text-secondary-custom">
                                     No hay movimientos registrados con los filtros actuales.
                                 </td>
                             </tr>
