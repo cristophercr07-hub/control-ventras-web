@@ -3,17 +3,6 @@
 
 {% block content %}
 
-<!-- Datos para los gráficos (lo lee base.html en initDashboardPage) -->
-<div id="dashboard_data"
-     style="display:none;"
-     data-top-labels='{{ top_labels | default([]) | tojson }}'
-     data-top-values='{{ top_values | default([]) | tojson }}'
-     data-week-labels='{{ week_labels | default([]) | tojson }}'
-     data-week-values='{{ week_values | default([]) | tojson }}'
-     data-user-labels='{{ user_labels | default([]) | tojson }}'
-     data-user-values='{{ user_values | default([]) | tojson }}'>
-</div>
-
 <div class="row mb-4">
     <div class="col-12">
         <div class="card p-4">
@@ -40,10 +29,10 @@
                             <label class="form-label text-secondary-custom mb-1">Rango rápido</label>
                             <select name="preset" class="form-select form-select-sm">
                                 <option value="">Personalizado</option>
-                                <option value="week"   {% if request.args.get('preset') == 'week' %}selected{% endif %}>Últimos 7 días</option>
-                                <option value="4weeks" {% if request.args.get('preset') == '4weeks' %}selected{% endif %}>Últimas 4 semanas</option>
-                                <option value="month"  {% if request.args.get('preset') == 'month' %}selected{% endif %}>Este mes</option>
-                                <option value="year"   {% if request.args.get('preset') == 'year' %}selected{% endif %}>Este año</option>
+                                <option value="week">Últimos 7 días</option>
+                                <option value="4weeks">Últimas 4 semanas</option>
+                                <option value="month">Este mes</option>
+                                <option value="year">Este año</option>
                             </select>
                         </div>
                         <div class="col-auto">
@@ -119,6 +108,87 @@
                 </div>
             </div>
 
+            <!-- PANEL DE COBROS -->
+            <div class="row g-3 mt-3">
+                <div class="col-12 col-lg-6">
+                    <div class="card h-100 p-3 bg-dark border-secondary">
+                        <h5 class="text-accent mb-2">Próximos cobros (7 días)</h5>
+                        <p class="text-secondary-custom mb-2">
+                            Ventas <b>Pendientes</b> con fecha de vencimiento en los próximos 7 días.
+                        </p>
+                        <div class="table-responsive">
+                            <table class="table table-dark-custom table-sm mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha vence</th>
+                                        <th>Cliente</th>
+                                        <th>Total (₡)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if upcoming_sales and upcoming_sales|length > 0 %}
+                                        {% for s in upcoming_sales %}
+                                            <tr>
+                                                <td class="text-center">
+                                                    {{ s.due_date.isoformat() if s.due_date else '' }}
+                                                </td>
+                                                <td class="text-center">{{ s.name }}</td>
+                                                <td class="text-end">₡{{ s.total|format_num }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="3" class="text-center text-secondary-custom">
+                                                No hay cobros programados en los próximos 7 días.
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-6">
+                    <div class="card h-100 p-3 bg-dark border-secondary">
+                        <h5 class="text-accent mb-2">Cobros vencidos</h5>
+                        <p class="text-secondary-custom mb-2">
+                            Ventas <b>Pendientes</b> cuya fecha de vencimiento ya pasó.
+                        </p>
+                        <div class="table-responsive">
+                            <table class="table table-dark-custom table-sm mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha vence</th>
+                                        <th>Cliente</th>
+                                        <th>Total (₡)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if overdue_sales and overdue_sales|length > 0 %}
+                                        {% for s in overdue_sales %}
+                                            <tr>
+                                                <td class="text-center">
+                                                    {{ s.due_date.isoformat() if s.due_date else '' }}
+                                                </td>
+                                                <td class="text-center">{{ s.name }}</td>
+                                                <td class="text-end">₡{{ s.total|format_num }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="3" class="text-center text-secondary-custom">
+                                                No hay cobros vencidos registrados.
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
@@ -162,4 +232,85 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const topLabels  = {{ top_labels  | default([]) | tojson }};
+    const topData    = {{ top_values  | default([]) | tojson }};
+    const weekLabels = {{ week_labels | default([]) | tojson }};
+    const weekData   = {{ week_values | default([]) | tojson }};
+    const userLabels = {{ user_labels | default([]) | tojson }};
+    const userData   = {{ user_values | default([]) | tojson }};
+
+    const topCtx = document.getElementById('topProductsChart');
+    if (topCtx && topLabels.length > 0) {
+        new Chart(topCtx, {
+            type: 'doughnut',
+            data: {
+                labels: topLabels,
+                datasets: [{ data: topData }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#1a1a1a' } }
+                }
+            }
+        });
+    }
+
+    const weekCtx = document.getElementById('weeklyProfitChart');
+    if (weekCtx && weekLabels.length > 0) {
+        new Chart(weekCtx, {
+            type: 'bar',
+            data: {
+                labels: weekLabels,
+                datasets: [{
+                    label: 'Ganancia por semana',
+                    data: weekData
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        ticks: { color: '#1a1a1a' },
+                        grid: { display: false }
+                    },
+                    y: {
+                        ticks: { color: '#1a1a1a' },
+                        grid: { color: 'rgba(0,0,0,0.1)' }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#1a1a1a' } }
+                }
+            }
+        });
+    }
+
+    const userCtx = document.getElementById('userProfitChart');
+    if (userCtx && userLabels.length > 0) {
+        new Chart(userCtx, {
+            type: 'doughnut',
+            data: {
+                labels: userLabels,
+                datasets: [{ data: userData }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#1a1a1a' } }
+                }
+            }
+        });
+    }
+});
+</script>
 {% endblock %}
