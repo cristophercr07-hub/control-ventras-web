@@ -23,10 +23,19 @@ from sqlalchemy import inspect
 
 app = Flask(__name__)
 
-# Ruta absoluta para la BD (funciona en local y en Render)
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-db_path = os.path.join(BASE_DIR, "ventas.db")
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+# 1) Intentar usar DATABASE_URL (PostgreSQL en Render u otro)
+db_url = os.environ.get("DATABASE_URL")
+
+if db_url:
+    # Algunos proveedores dan "postgres://", SQLAlchemy espera "postgresql://"
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+else:
+    # Fallback local: archivo SQLite ventas.db
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+    db_path = os.path.join(BASE_DIR, "ventas.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 
 # SECRET_KEY desde variable de entorno (más seguro en producción)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-key-change-me")
@@ -41,6 +50,27 @@ db = SQLAlchemy(app)
 
 # Margen mínimo de utilidad para la calculadora (7 %)
 MIN_MARGIN_PERCENT = 7.0
+
+
+# ---------------------------------------------------------
+# FILTRO JINJA PARA FORMATEAR NÚMEROS
+# ---------------------------------------------------------
+
+@app.template_filter("format_num")
+def format_num(value):
+    """
+    Formatea números como: 1.234.567,89
+    (punto para miles, coma para decimales)
+    """
+    try:
+        val = float(value)
+    except (TypeError, ValueError):
+        return value
+    # 1,234,567.89
+    s = f"{val:,.2f}"
+    # Cambiar a formato 1.234.567,89
+    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
+    return s
 
 
 # ---------------------------------------------------------
@@ -107,20 +137,6 @@ def require_login():
     return None
 
 
-# Filtro para formatear números: 12.345,67
-@app.template_filter("format_num")
-def format_num(value):
-    try:
-        n = float(value or 0)
-    except Exception:
-        return value
-    s = f"{n:,.2f}"          # 12,345.67
-    s = s.replace(",", "X")  # 12X345.67
-    s = s.replace(".", ",")  # 12X345,67
-    s = s.replace("X", ".")  # 12.345,67
-    return s
-
-
 # ---------------------------------------------------------
 # INICIALIZACIÓN DE LA BD, COLUMNA user_id EN SALE Y USUARIO ADMIN
 # ---------------------------------------------------------
@@ -128,29 +144,36 @@ def format_num(value):
 with app.app_context():
     db.create_all()
 
-    # Asegurar que la tabla sale tenga la columna user_id
+    # Asegurar que la tabla sale tenga la columna user_id (para instalaciones anteriores)
     inspector = inspect(db.engine)
-    cols = [col["name"] for col in inspector.get_columns("sale")]
-    if "user_id" not in cols:
-        try:
-            db.session.execute("ALTER TABLE sale ADD COLUMN user_id INTEGER")
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+    try:
+        cols = [col["name"] for col in inspector.get_columns("sale")]
+        if "user_id" not in cols:
+            try:
+                db.session.execute("ALTER TABLE sale ADD COLUMN user_id INTEGER")
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+    except Exception:
+        # En una BD nueva, simplemente puede fallar si la tabla aún no existe
+        pass
 
     # Crear o actualizar usuario admin usando variables de entorno
     admin_username = os.environ.get("ADMIN_USER", "admin")
-    admin_password = os.environ.get("ADMIN_PASS")
+    admin_password = os.environ.get("ADMIN_PASS")  # si no está, se usa fallback (solo para desarrollo)
 
     admin_user = User.query.filter_by(username=admin_username).first()
 
     if admin_user:
+        # Si hay password en entorno, sincronizamos la contraseña con esa
         if admin_password:
             admin_user.password_hash = generate_password_hash(admin_password)
             admin_user.is_admin = True
             db.session.commit()
     else:
+        # No existe ese usuario admin, lo creamos
         if admin_password:
+            # Producción: credenciales fuertes vía entorno
             admin = User(
                 username=admin_username,
                 password_hash=generate_password_hash(admin_password),
@@ -190,6 +213,9 @@ def login():
         else:
             error = "Usuario o contraseña incorrectos."
 
+    # Si la petición viene de SPA con XHR, devolvemos solo el bloque
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return render_template("login.html", error=error)
     return render_template("login.html", error=error)
 
 
@@ -210,6 +236,7 @@ def usuarios():
     if not session.get("is_admin"):
         return redirect(url_for("ventas"))
 
+    # Mensajes desde URL (delete) + POST (create)
     error = request.args.get("error")
     success = request.args.get("success")
 
@@ -243,6 +270,14 @@ def usuarios():
             success = form_success
 
     users = User.query.order_by(User.username).all()
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return render_template(
+            "usuarios.html",
+            users=users,
+            error=error,
+            success=success,
+        )
     return render_template(
         "usuarios.html",
         users=users,
@@ -393,6 +428,24 @@ def productos():
                 error = f"Error al guardar el producto: {e}"
 
     products = Product.query.order_by(Product.name).all()
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return render_template(
+            "productos.html",
+            products=products,
+            error=error,
+            success=success,
+            min_margin=MIN_MARGIN_PERCENT,
+            product_name_input=product_name_input,
+            cost_input=cost_input,
+            margin_input=margin_input,
+            quantity_input=quantity_input,
+            price_result=price_result,
+            profit_unit=profit_unit,
+            profit_total=profit_total,
+            margin_used=margin_used,
+        )
+
     return render_template(
         "productos.html",
         products=products,
@@ -545,8 +598,7 @@ def ventas():
         for p in products
     }
 
-    return render_template(
-        "ventas.html",
+    context = dict(
         error=error,
         success=success,
         sales=sales,
@@ -564,6 +616,10 @@ def ventas():
         total_pendiente=total_pendiente,
         product_mapping=product_mapping,
     )
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return render_template("ventas.html", **context)
+    return render_template("ventas.html", **context)
 
 
 @app.post("/ventas/<int:sale_id>/delete")
@@ -704,8 +760,7 @@ def flujo():
     ahorro_faltante = max(ahorro_objetivo - ahorro_real, 0.0)
     meta_cumplida = (total_ganancia > 0) and (ahorro_real >= ahorro_objetivo)
 
-    return render_template(
-        "flujo.html",
+    context = dict(
         error=error,
         success=success,
         expenses=expenses,
@@ -723,6 +778,10 @@ def flujo():
         ahorro_faltante=ahorro_faltante,
         meta_cumplida=meta_cumplida,
     )
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return render_template("flujo.html", **context)
+    return render_template("flujo.html", **context)
 
 
 @app.route("/flujo/export")
@@ -799,10 +858,10 @@ def dashboard():
         elif preset == "4weeks":        # últimas 4 semanas (28 días)
             d_to = today
             d_from = today - datetime.timedelta(days=28)
-        elif preset == "month":         # este mes
+        elif preset == "month":         # este mes (desde el día 1)
             d_to = today
             d_from = today.replace(day=1)
-        elif preset == "year":          # este año
+        elif preset == "year":          # este año (desde 1 de enero)
             d_to = today
             d_from = today.replace(month=1, day=1)
 
@@ -827,7 +886,7 @@ def dashboard():
     avg_ticket = total_monto_period / total_ventas_period if total_ventas_period > 0 else 0.0
     avg_profit_per_sale = total_ganancia / total_ventas_period if total_ventas_period > 0 else 0.0
 
-    # Promedio diario de utilidad
+    # Promedio diario de utilidad (manejo robusto de fecha)
     profit_by_day = defaultdict(float)
     for s in sales:
         d = s.date
@@ -845,7 +904,7 @@ def dashboard():
     num_dias = len(profit_by_day)
     avg_daily_profit = total_ganancia / num_dias if num_dias > 0 else 0.0
 
-    # Top productos por ganancia
+    # Top productos por ganancia acumulada (filtrada)
     profit_by_product = defaultdict(float)
     for s in sales:
         profit_by_product[s.product] += float(s.profit or 0)
@@ -855,7 +914,7 @@ def dashboard():
     top_labels = [name for name, _ in top_items]
     top_values = [round(value, 2) for _, value in top_items]
 
-    # Ganancias por semana
+    # Ganancias por semana (ISO week) con manejo robusto de fechas
     profit_by_week = defaultdict(float)
     for s in sales:
         d = s.date
@@ -890,13 +949,13 @@ def dashboard():
     user_values = [round(v, 2) for _, v in user_items]
 
     # -------------------------------------------------
-    # ALERTAS AUTOMÁTICAS (a nivel global)
+    # ALERTAS AUTOMÁTICAS (a nivel global, no solo filtrado)
     # -------------------------------------------------
     alerts = []
 
     today = datetime.date.today()
 
-    # 1) Ventas pendientes con más de 1 día de antigüedad
+    # 1) Ventas pendientes con más de 1 día de antigüedad (manejo robusto de fecha)
     pending_sales = Sale.query.filter(Sale.status == "Pendiente").all()
     old_pending = []
     for s in pending_sales:
@@ -936,6 +995,7 @@ def dashboard():
     except Exception:
         weekly_profit = 0.0
 
+    # Umbral configurable vía variable de entorno (opcional)
     min_weekly_profit_str = os.environ.get("ALERT_WEEKLY_PROFIT_MIN", "").strip()
     try:
         min_weekly_profit = float(min_weekly_profit_str) if min_weekly_profit_str else 0.0
@@ -953,8 +1013,7 @@ def dashboard():
             ),
         })
 
-    return render_template(
-        "dashboard.html",
+    context = dict(
         top_labels=top_labels,
         top_values=top_values,
         week_labels=week_labels,
@@ -973,6 +1032,10 @@ def dashboard():
         weekly_profit=weekly_profit,
         min_weekly_profit=min_weekly_profit,
     )
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return render_template("dashboard.html", **context)
+    return render_template("dashboard.html", **context)
 
 
 # ---------------------------------------------------------
