@@ -11,12 +11,11 @@ from flask import (
     url_for,
     session,
     send_file,
-    jsonify,
 )
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 # ---------------------------------------------------------
 # CONFIGURACIÓN BÁSICA
@@ -26,26 +25,25 @@ app = Flask(__name__)
 
 # SECRET_KEY desde variable de entorno (más seguro en producción)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-key-change-me")
-
-# Configuración de BD: Postgres en producción, SQLite en local
-database_url = os.environ.get("DATABASE_URL", "").strip()
-
-if database_url:
-    # Render suele entregar postgres:// y SQLAlchemy requiere postgresql://
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-else:
-    # Fallback local a SQLite (archivo ventas.db en la carpeta del proyecto)
-    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-    db_path = os.path.join(BASE_DIR, "ventas.db")
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
-
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Cookies de sesión más seguras
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+# Configuración de la base de datos
+db_url = os.environ.get("DATABASE_URL")
+
+if db_url:
+    # Render suele dar postgres://, SQLAlchemy con psycopg2 necesita postgresql+psycopg2://
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+else:
+    # Fallback local: SQLite
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+    db_path = os.path.join(BASE_DIR, "ventas.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 
 db = SQLAlchemy(app)
 
@@ -67,13 +65,12 @@ class User(db.Model):
 class Client(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
-    phone = db.Column(db.String(40))
+    phone = db.Column(db.String(50))
     email = db.Column(db.String(120))
     notes = db.Column(db.String(255))
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
 
-    # Dueño del cliente (multiusuario)
-    owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    owner = db.relationship("User", backref="clients", lazy=True)
+    user = db.relationship("User", backref="clients", lazy=True)
 
 
 class Product(db.Model):
@@ -82,22 +79,18 @@ class Product(db.Model):
     cost = db.Column(db.Float, default=0.0)
     price = db.Column(db.Float, default=0.0)
     margin_percent = db.Column(db.Float, default=0.0)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
 
-    # Dueño del producto (multiusuario)
-    owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    owner = db.relationship("User", backref="products", lazy=True)
+    user = db.relationship("User", backref="products", lazy=True)
 
 
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
-    # Ahora se referencia a Client, pero mantenemos name/product de texto para histórico
-    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=True)
-    client = db.relationship("Client", backref="sales", lazy=True)
-
-    name = db.Column(db.String(120), nullable=False)      # nombre del cliente (histórico)
+    # nombre del cliente (para histórico legible)
+    name = db.Column(db.String(120), nullable=False)
     product = db.Column(db.String(120), nullable=False)
-    status = db.Column(db.String(20), nullable=False)     # Pagado / Pendiente
+    status = db.Column(db.String(20), nullable=False)  # Pagado / Pendiente
     cost_per_unit = db.Column(db.Float, default=0.0)
     price_per_unit = db.Column(db.Float, default=0.0)
     quantity = db.Column(db.Integer, default=1)
@@ -105,11 +98,15 @@ class Sale(db.Model):
     profit = db.Column(db.Float, default=0.0)
     comment = db.Column(db.String(255))
 
-    # Usuario del sistema que registró la venta (dueño de la venta)
+    # Usuario del sistema que registró la venta
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     user = db.relationship("User", backref="sales", lazy=True)
 
-    # Fecha de vencimiento de pago (para ventas pendientes)
+    # Cliente vinculado (tabla Client)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=True)
+    client = db.relationship("Client", backref="sales", lazy=True)
+
+    # Recordatorio de pago
     payment_due_date = db.Column(db.Date, nullable=True)
     payment_reminder_sent = db.Column(db.Boolean, default=False)
 
@@ -118,12 +115,11 @@ class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
     description = db.Column(db.String(255), nullable=False)
-    category = db.Column(db.String(20), nullable=False)   # Gasto / Reinversión
+    category = db.Column(db.String(20), nullable=False)  # Gasto / Reinversión
     amount = db.Column(db.Float, default=0.0)
 
-    # Dueño del gasto (multiusuario)
-    owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    owner = db.relationship("User", backref="expenses", lazy=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    user = db.relationship("User", backref="expenses", lazy=True)
 
 
 # ---------------------------------------------------------
@@ -139,111 +135,107 @@ def parse_date(value):
         return None
 
 
+def current_user():
+    """Devuelve el objeto User de la sesión, o None."""
+    uid = session.get("user_id")
+    if not uid:
+        return None
+    return User.query.get(uid)
+
+
 def require_login():
     if not session.get("user_id"):
         return redirect(url_for("login"))
     return None
 
 
-def current_user_id():
-    return session.get("user_id")
-
-
-def current_is_admin():
+def is_admin_user():
     return bool(session.get("is_admin"))
 
 
-def user_scope_query(model):
+# Filtro para formateo de números en plantillas
+def format_num(value):
     """
-    Devuelve un query filtrado por usuario para multiusuario:
-      - Admin: ve todo.
-      - Usuario normal:
-          * Sale: solo sus ventas (Sale.user_id == su id)
-          * Product/Client/Expense: solo registros con owner_id == su id
+    Formato amigable:
+    - 1 234 567,89
+    Usando punto como separador de miles y coma como decimal.
     """
-    q = model.query
-    uid = current_user_id()
-    if not uid:
-        return q
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return value
+    formatted = f"{number:,.2f}"
+    formatted = formatted.replace(",", "X").replace(".", ",").replace("X", ".")
+    return formatted
 
-    if current_is_admin():
-        return q
 
-    if hasattr(model, "owner_id"):
-        return q.filter(model.owner_id == uid)
-
-    if model is Sale:
-        return q.filter(Sale.user_id == uid)
-
-    return q
+app.jinja_env.filters["format_num"] = format_num
 
 
 # ---------------------------------------------------------
-# INICIALIZACIÓN DE LA BD Y MIGRACIONES BÁSICAS
+# INICIALIZACIÓN ROBUSTA DE LA BD Y USUARIO ADMIN
 # ---------------------------------------------------------
 
 with app.app_context():
+    # Crear tablas que no existan
     db.create_all()
 
     inspector = inspect(db.engine)
 
-    # Asegurar columnas en SALE (instalaciones anteriores)
-    try:
-        sale_cols = [col["name"] for col in inspector.get_columns("sale")]
+    def has_column(table_name, column_name):
+        """Revisa si una columna existe en una tabla (seguro para cualquier motor)."""
+        try:
+            cols = [col["name"] for col in inspector.get_columns(table_name)]
+            return column_name in cols
+        except Exception:
+            return False
 
-        if "user_id" not in sale_cols:
-            db.session.execute("ALTER TABLE sale ADD COLUMN user_id INTEGER")
+    def safe_alter(sql):
+        """Ejecuta un ALTER TABLE de forma segura (si falla, hace rollback y sigue)."""
+        try:
+            db.session.execute(text(sql))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
-        if "payment_due_date" not in sale_cols:
-            db.session.execute("ALTER TABLE sale ADD COLUMN payment_due_date DATE")
+    # 1) Campo user_id en sale
+    if not has_column("sale", "user_id"):
+        safe_alter("ALTER TABLE sale ADD COLUMN user_id INTEGER")
 
-        if "payment_reminder_sent" not in sale_cols:
-            db.session.execute(
-                "ALTER TABLE sale ADD COLUMN payment_reminder_sent BOOLEAN DEFAULT 0"
-            )
+    # 2) Campos de recordatorio de pago en sale
+    if not has_column("sale", "payment_due_date"):
+        safe_alter("ALTER TABLE sale ADD COLUMN payment_due_date DATE")
 
-        if "client_id" not in sale_cols:
-            db.session.execute("ALTER TABLE sale ADD COLUMN client_id INTEGER")
+    if not has_column("sale", "payment_reminder_sent"):
+        safe_alter("ALTER TABLE sale ADD COLUMN payment_reminder_sent BOOLEAN DEFAULT FALSE")
 
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
+    # 3) client_id en sale
+    if not has_column("sale", "client_id"):
+        safe_alter("ALTER TABLE sale ADD COLUMN client_id INTEGER")
 
-    # Asegurar columnas owner_id en PRODUCT, EXPENSE, CLIENT (multiusuario)
-    try:
-        # PRODUCT
-        prod_cols = [col["name"] for col in inspector.get_columns("product")]
-        if "owner_id" not in prod_cols:
-            db.session.execute("ALTER TABLE product ADD COLUMN owner_id INTEGER")
+    # 4) user_id en expense
+    if not has_column("expense", "user_id"):
+        safe_alter("ALTER TABLE expense ADD COLUMN user_id INTEGER")
 
-        # EXPENSE
-        exp_cols = [col["name"] for col in inspector.get_columns("expense")]
-        if "owner_id" not in exp_cols:
-            db.session.execute("ALTER TABLE expense ADD COLUMN owner_id INTEGER")
+    # 5) user_id en product
+    if not has_column("product", "user_id"):
+        safe_alter("ALTER TABLE product ADD COLUMN user_id INTEGER")
 
-        # CLIENT
-        client_cols = [col["name"] for col in inspector.get_columns("client")]
-        if "owner_id" not in client_cols:
-            db.session.execute("ALTER TABLE client ADD COLUMN owner_id INTEGER")
+    # 6) user_id en client
+    if not has_column("client", "user_id"):
+        safe_alter("ALTER TABLE client ADD COLUMN user_id INTEGER")
 
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-    # Crear o actualizar usuario admin usando variables de entorno
+    # Usuario admin desde entorno
     admin_username = os.environ.get("ADMIN_USER", "admin")
-    admin_password = os.environ.get("ADMIN_PASS")  # si no está, se usa fallback (solo dev)
+    admin_password = os.environ.get("ADMIN_PASS")
 
-    admin_user = User.query.filter_by(username=admin_username).first()
-
-    if admin_user:
-        # Si hay password en entorno, sincronizamos la contraseña con esa
+    admin_user_obj = User.query.filter_by(username=admin_username).first()
+    if admin_user_obj:
         if admin_password:
-            admin_user.password_hash = generate_password_hash(admin_password)
-            admin_user.is_admin = True
+            admin_user_obj.password_hash = generate_password_hash(admin_password)
+            admin_user_obj.is_admin = True
             db.session.commit()
     else:
-        # No existe ese usuario admin, lo creamos
         if admin_password:
             admin = User(
                 username=admin_username,
@@ -251,7 +243,7 @@ with app.app_context():
                 is_admin=True,
             )
         else:
-            # Fallback para desarrollo local: admin / admin
+            # Fallback desarrollo: admin / admin
             admin = User(
                 username="admin",
                 password_hash=generate_password_hash("admin"),
@@ -259,43 +251,6 @@ with app.app_context():
             )
         db.session.add(admin)
         db.session.commit()
-
-    # Asignar registros antiguos sin dueño al admin (si existe)
-    admin_obj = User.query.filter_by(is_admin=True).first()
-    if admin_obj:
-        # Productos sin owner -> admin
-        Product.query.filter(Product.owner_id.is_(None)).update(
-            {"owner_id": admin_obj.id}, synchronize_session=False
-        )
-        # Gastos sin owner -> admin
-        Expense.query.filter(Expense.owner_id.is_(None)).update(
-            {"owner_id": admin_obj.id}, synchronize_session=False
-        )
-        # Clientes sin owner -> admin
-        Client.query.filter(Client.owner_id.is_(None)).update(
-            {"owner_id": admin_obj.id}, synchronize_session=False
-        )
-        # Ventas sin user_id -> admin
-        Sale.query.filter(Sale.user_id.is_(None)).update(
-            {"user_id": admin_obj.id}, synchronize_session=False
-        )
-        db.session.commit()
-
-
-# ---------------------------------------------------------
-# FILTRO GLOBAL PARA FORMATEAR NÚMEROS
-# ---------------------------------------------------------
-
-@app.template_filter("format_num")
-def format_num(value):
-    try:
-        n = float(value or 0)
-    except (TypeError, ValueError):
-        n = 0.0
-    # Separador de miles con coma, luego cambiamos coma por punto
-    s = f"{n:,.2f}"
-    s = s.replace(",", ".")
-    return s
 
 
 # ---------------------------------------------------------
@@ -338,10 +293,9 @@ def logout():
 def usuarios():
     if not session.get("user_id"):
         return redirect(url_for("login"))
-    if not session.get("is_admin"):
+    if not is_admin_user():
         return redirect(url_for("ventas"))
 
-    # Mensajes desde URL (delete) + POST (create)
     error = request.args.get("error")
     success = request.args.get("success")
 
@@ -388,7 +342,7 @@ def delete_user(user_id):
     """Eliminar usuario (solo admin). El admin no puede eliminarse a sí mismo."""
     if not session.get("user_id"):
         return redirect(url_for("login"))
-    if not session.get("is_admin"):
+    if not is_admin_user():
         return redirect(url_for("ventas"))
 
     current_user_id = session.get("user_id")
@@ -427,9 +381,12 @@ def clientes():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+
     error = None
     success = None
-    uid = current_user_id()
 
     if request.method == "POST":
         try:
@@ -441,36 +398,31 @@ def clientes():
             if not name:
                 raise ValueError("El nombre del cliente es obligatorio.")
 
-            # Buscamos dentro del alcance del usuario
-            existing = user_scope_query(Client).filter_by(name=name).first()
-            if existing:
-                existing.phone = phone
-                existing.email = email
-                existing.notes = notes
-                success = "Cliente actualizado correctamente."
-            else:
-                c = Client(
-                    name=name,
-                    phone=phone,
-                    email=email,
-                    notes=notes,
-                    owner_id=uid,
-                )
-                db.session.add(c)
-                success = "Cliente creado correctamente."
-
+            c = Client(
+                name=name,
+                phone=phone,
+                email=email,
+                notes=notes,
+                user_id=user.id,
+            )
+            db.session.add(c)
             db.session.commit()
+            success = "Cliente creado correctamente."
         except Exception as e:
             db.session.rollback()
             error = f"Error al guardar el cliente: {e}"
 
-    clients = user_scope_query(Client).order_by(Client.name).all()
+    # Listado de clientes (admin ve todos, usuario normal solo los suyos)
+    if user.is_admin:
+        clients = Client.query.order_by(Client.name).all()
+    else:
+        clients = Client.query.filter_by(user_id=user.id).order_by(Client.name).all()
 
     return render_template(
         "clientes.html",
-        clients=clients,
         error=error,
         success=success,
+        clients=clients,
     )
 
 
@@ -479,12 +431,14 @@ def delete_client(client_id):
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
-    uid = current_user_id()
-    is_admin_flag = current_is_admin()
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
 
     client = Client.query.get_or_404(client_id)
 
-    if (not is_admin_flag) and client.owner_id != uid:
+    # Permisos: admin puede eliminar cualquiera, usuario solo los suyos
+    if not user.is_admin and client.user_id != user.id:
         return redirect(url_for("clientes"))
 
     db.session.delete(client)
@@ -501,9 +455,12 @@ def productos():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+
     error = None
     success = None
-    uid = current_user_id()
 
     # Valores por defecto para la calculadora
     product_name_input = ""
@@ -547,10 +504,14 @@ def productos():
                 if save_to_catalog:
                     if not product_name_input:
                         raise ValueError("Para guardar en el catálogo debes indicar un nombre de producto.")
-                    # Buscar dentro del alcance del usuario
-                    existing = user_scope_query(Product).filter_by(
-                        name=product_name_input
-                    ).first()
+                    if user.is_admin:
+                        existing = Product.query.filter_by(name=product_name_input).first()
+                    else:
+                        existing = Product.query.filter_by(
+                            name=product_name_input,
+                            user_id=user.id
+                        ).first()
+
                     if existing:
                         existing.cost = cost
                         existing.price = price_result
@@ -561,7 +522,7 @@ def productos():
                             cost=cost,
                             price=price_result,
                             margin_percent=margin_used,
-                            owner_id=uid,
+                            user_id=user.id,
                         )
                         db.session.add(p)
                     db.session.commit()
@@ -584,7 +545,14 @@ def productos():
                 if cost > 0 and price >= cost:
                     margin_percent = (price - cost) / cost * 100.0
 
-                existing = user_scope_query(Product).filter_by(name=name).first()
+                if user.is_admin:
+                    existing = Product.query.filter_by(name=name).first()
+                else:
+                    existing = Product.query.filter_by(
+                        name=name,
+                        user_id=user.id
+                    ).first()
+
                 if existing:
                     existing.cost = cost
                     existing.price = price
@@ -597,7 +565,7 @@ def productos():
                         cost=cost,
                         price=price,
                         margin_percent=margin_percent,
-                        owner_id=uid,
+                        user_id=user.id,
                     )
                     db.session.add(p)
                     db.session.commit()
@@ -606,7 +574,12 @@ def productos():
                 db.session.rollback()
                 error = f"Error al guardar el producto: {e}"
 
-    products = user_scope_query(Product).order_by(Product.name).all()
+    # Listado de productos (admin ve todos, usuario normal solo los suyos)
+    if user.is_admin:
+        products = Product.query.order_by(Product.name).all()
+    else:
+        products = Product.query.filter_by(user_id=user.id).order_by(Product.name).all()
+
     return render_template(
         "productos.html",
         products=products,
@@ -629,12 +602,14 @@ def delete_product(product_id):
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
-    uid = current_user_id()
-    is_admin_flag = current_is_admin()
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
 
     product = Product.query.get_or_404(product_id)
 
-    if (not is_admin_flag) and product.owner_id != uid:
+    # Permisos: admin puede borrar cualquiera, usuario solo los suyos
+    if not user.is_admin and product.user_id != user.id:
         return redirect(url_for("productos"))
 
     db.session.delete(product)
@@ -657,10 +632,13 @@ def calculadora():
 # VENTAS
 # ---------------------------------------------------------
 
-def apply_sales_filters(query, filter_name, filter_status, date_from_str, date_to_str):
-    if filter_name:
-        like_pattern = f"%{filter_name}%"
-        query = query.filter(Sale.name.ilike(like_pattern))
+def apply_sales_filters(query, filter_client_id, filter_status, date_from_str, date_to_str):
+    if filter_client_id:
+        try:
+            cid = int(filter_client_id)
+            query = query.filter(Sale.client_id == cid)
+        except ValueError:
+            pass
 
     if filter_status:
         query = query.filter(Sale.status == filter_status)
@@ -680,61 +658,72 @@ def ventas():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+
     error = None
     success = request.args.get("success")
-    uid = current_user_id()
+
+    # Base query por permisos
+    if user.is_admin:
+        base_sales_query = Sale.query
+        base_products_query = Product.query
+        base_clients_query = Client.query
+    else:
+        base_sales_query = Sale.query.filter(Sale.user_id == user.id)
+        base_products_query = Product.query.filter(Product.user_id == user.id)
+        base_clients_query = Client.query.filter(Client.user_id == user.id)
 
     if request.method == "POST":
         try:
             date_str = request.form.get("date")
             date = parse_date(date_str) or datetime.date.today()
 
-            client_id_str = request.form.get("client_id") or ""
+            status = request.form.get("status") or "Pagado"
+
+            client_id_raw = request.form.get("client_id") or ""
             client_obj = None
-            if client_id_str:
+            if client_id_raw:
                 try:
-                    client_id_val = int(client_id_str)
-                    # Cliente dentro del alcance del usuario
-                    client_obj = user_scope_query(Client).filter_by(id=client_id_val).first()
+                    cid = int(client_id_raw)
+                    client_obj = base_clients_query.filter(Client.id == cid).first()
                 except ValueError:
                     client_obj = None
 
-            name = ""
-            if client_obj:
-                name = client_obj.name
-            else:
-                name = (request.form.get("name") or "").strip()
+            if not client_obj:
+                raise ValueError("Debes seleccionar un cliente válido.")
 
             product_from_select = (request.form.get("product_select") or "").strip()
             product_input = (request.form.get("product") or "").strip()
             product = product_input or product_from_select
 
-            status = request.form.get("status") or "Pagado"
             cost_per_unit = float(request.form.get("cost_per_unit") or 0)
             price_per_unit = float(request.form.get("price_per_unit") or 0)
             quantity = int(request.form.get("quantity") or 1)
             comment = (request.form.get("comment") or "").strip()
 
-            payment_due_str = request.form.get("payment_due_date") or ""
-            payment_due_date = parse_date(payment_due_str)
+            payment_due_date_str = request.form.get("payment_due_date") or ""
+            payment_due_date = None
+            payment_reminder_sent = False
 
-            if not name:
-                raise ValueError("El nombre del cliente es obligatorio.")
             if not product:
                 raise ValueError("Debes seleccionar o escribir un producto.")
             if quantity <= 0:
                 raise ValueError("La cantidad debe ser mayor que cero.")
 
-            if status == "Pendiente" and not payment_due_date:
-                raise ValueError("Debes indicar una fecha de pago para las ventas pendientes.")
+            if status == "Pendiente":
+                payment_due_date = parse_date(payment_due_date_str)
+            else:
+                payment_due_date = None
+                payment_reminder_sent = False
 
             total = price_per_unit * quantity
             profit = (price_per_unit - cost_per_unit) * quantity
 
             sale = Sale(
                 date=date,
-                client_id=client_obj.id if client_obj else None,
-                name=name,
+                name=client_obj.name,
                 product=product,
                 status=status,
                 cost_per_unit=cost_per_unit,
@@ -743,9 +732,10 @@ def ventas():
                 total=total,
                 profit=profit,
                 comment=comment,
-                user_id=uid,
-                payment_due_date=payment_due_date if status == "Pendiente" else None,
-                payment_reminder_sent=False,
+                user_id=user.id,
+                client_id=client_obj.id,
+                payment_due_date=payment_due_date,
+                payment_reminder_sent=payment_reminder_sent,
             )
             db.session.add(sale)
             db.session.commit()
@@ -755,23 +745,13 @@ def ventas():
             error = f"Error al guardar la venta: {e}"
 
     # Filtros (GET)
-    filter_name = request.args.get("filter_name") or ""
+    filter_client_id = request.args.get("filter_client_id") or ""
     filter_status = request.args.get("filter_status") or ""
     date_from = request.args.get("date_from") or ""
     date_to = request.args.get("date_to") or ""
-    filter_user_id = request.args.get("filter_user_id") or ""
 
-    # Base query limitada por usuario
-    query = user_scope_query(Sale)
-    query = apply_sales_filters(query, filter_name, filter_status, date_from, date_to)
-
-    # Filtro por usuario solo tiene sentido para admin
-    if filter_user_id and current_is_admin():
-        try:
-            user_filter_id = int(filter_user_id)
-            query = query.filter(Sale.user_id == user_filter_id)
-        except ValueError:
-            filter_user_id = ""
+    query = base_sales_query
+    query = apply_sales_filters(query, filter_client_id, filter_status, date_from, date_to)
 
     sales = query.order_by(Sale.date.desc(), Sale.id.desc()).all()
 
@@ -782,9 +762,8 @@ def ventas():
     total_pagado = sum(float(s.total or 0) for s in sales if s.status == "Pagado")
     total_pendiente = sum(float(s.total or 0) for s in sales if s.status == "Pendiente")
 
-    products = user_scope_query(Product).order_by(Product.name).all()
-    users = User.query.order_by(User.username).all()  # Para el filtro (solo útil a admin)
-    clients = user_scope_query(Client).order_by(Client.name).all()
+    products = base_products_query.order_by(Product.name).all()
+    clients = base_clients_query.order_by(Client.name).all()
 
     # Diccionario para JS { nombre: {cost, price} }
     product_mapping = {
@@ -798,13 +777,11 @@ def ventas():
         success=success,
         sales=sales,
         products=products,
-        users=users,
         clients=clients,
-        filter_name=filter_name,
+        filter_client_id=filter_client_id,
         filter_status=filter_status,
         date_from=date_from,
         date_to=date_to,
-        filter_user_id=filter_user_id,
         total_ventas=total_ventas,
         total_monto=total_monto,
         total_ganancia=total_ganancia,
@@ -819,37 +796,39 @@ def delete_sale(sale_id):
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
-    uid = current_user_id()
-    is_admin_flag = current_is_admin()
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
 
     sale = Sale.query.get_or_404(sale_id)
 
-    if (not is_admin_flag) and sale.user_id != uid:
-        return redirect(url_for("ventas", success="No tienes permiso para eliminar esa venta."))
+    # Permisos: admin puede borrar cualquiera, usuario solo las suyas
+    if not user.is_admin and sale.user_id != user.id:
+        return redirect(url_for("ventas"))
 
     db.session.delete(sale)
     db.session.commit()
     return redirect(url_for("ventas", success="Venta eliminada correctamente."))
 
 
-@app.post("/ventas/<int:sale_id>/paid")
+@app.post("/ventas/<int:sale_id>/mark_paid")
 def mark_sale_paid(sale_id):
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
-    uid = current_user_id()
-    is_admin_flag = current_is_admin()
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
 
     sale = Sale.query.get_or_404(sale_id)
 
-    if (not is_admin_flag) and sale.user_id != uid:
-        return redirect(url_for("ventas", success="No tienes permiso para modificar esa venta."))
+    if not user.is_admin and sale.user_id != user.id:
+        return redirect(url_for("ventas"))
 
     sale.status = "Pagado"
     sale.payment_due_date = None
     sale.payment_reminder_sent = False
     db.session.commit()
-
     return redirect(url_for("ventas", success="Venta marcada como pagada."))
 
 
@@ -858,21 +837,22 @@ def ventas_export():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
-    filter_name = request.args.get("filter_name") or ""
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+
+    if user.is_admin:
+        base_query = Sale.query
+    else:
+        base_query = Sale.query.filter(Sale.user_id == user.id)
+
+    filter_client_id = request.args.get("filter_client_id") or ""
     filter_status = request.args.get("filter_status") or ""
     date_from = request.args.get("date_from") or ""
     date_to = request.args.get("date_to") or ""
-    filter_user_id = request.args.get("filter_user_id") or ""
 
-    query = user_scope_query(Sale)
-    query = apply_sales_filters(query, filter_name, filter_status, date_from, date_to)
-
-    if filter_user_id and current_is_admin():
-        try:
-            user_filter_id = int(filter_user_id)
-            query = query.filter(Sale.user_id == user_filter_id)
-        except ValueError:
-            pass
+    query = base_query
+    query = apply_sales_filters(query, filter_client_id, filter_status, date_from, date_to)
 
     sales = query.order_by(Sale.date.asc(), Sale.id.asc()).all()
 
@@ -880,7 +860,7 @@ def ventas_export():
     for s in sales:
         rows.append({
             "Fecha": s.date.isoformat() if s.date else "",
-            "Nombre / Cliente": s.name,
+            "Cliente": s.name,
             "Producto": s.product,
             "Estado": s.status,
             "Costo por unidad": s.cost_per_unit,
@@ -915,9 +895,12 @@ def flujo():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+
     error = None
     success = None
-    uid = current_user_id()
 
     if request.method == "POST":
         try:
@@ -937,21 +920,26 @@ def flujo():
                 description=description,
                 category=category,
                 amount=amount,
-                owner_id=uid,
+                user_id=user.id,
             )
             db.session.add(e)
             db.session.commit()
             success = "Movimiento registrado correctamente."
-        except Exception as e:
+        except Exception as ex:
             db.session.rollback()
-            error = f"Error al registrar movimiento: {e}"
+            error = f"Error al registrar movimiento: {ex}"
 
     date_from = request.args.get("date_from") or ""
     date_to = request.args.get("date_to") or ""
     category_filter = request.args.get("category_filter") or ""
 
-    exp_query = user_scope_query(Expense)
-    sales_query = user_scope_query(Sale)
+    # Base query por usuario
+    if user.is_admin:
+        exp_query = Expense.query
+        sales_query = Sale.query
+    else:
+        exp_query = Expense.query.filter(Expense.user_id == user.id)
+        sales_query = Sale.query.filter(Sale.user_id == user.id)
 
     d_from = parse_date(date_from)
     d_to = parse_date(date_to)
@@ -1004,34 +992,23 @@ def flujo():
     )
 
 
-@app.post("/flujo/<int:expense_id>/delete")
-def delete_expense(expense_id):
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-
-    uid = current_user_id()
-    is_admin_flag = current_is_admin()
-
-    expense = Expense.query.get_or_404(expense_id)
-
-    if (not is_admin_flag) and expense.owner_id != uid:
-        return redirect(url_for("flujo"))
-
-    db.session.delete(expense)
-    db.session.commit()
-    return redirect(url_for("flujo"))
-
-
 @app.route("/flujo/export")
 def flujo_export():
     if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    user = current_user()
+    if not user:
         return redirect(url_for("login"))
 
     date_from = request.args.get("date_from") or ""
     date_to = request.args.get("date_to") or ""
     category_filter = request.args.get("category_filter") or ""
 
-    exp_query = user_scope_query(Expense)
+    if user.is_admin:
+        exp_query = Expense.query
+    else:
+        exp_query = Expense.query.filter(Expense.user_id == user.id)
 
     d_from = parse_date(date_from)
     d_to = parse_date(date_to)
@@ -1068,8 +1045,28 @@ def flujo_export():
     )
 
 
+@app.post("/flujo/<int:expense_id>/delete")
+def delete_expense(expense_id):
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+
+    expense = Expense.query.get_or_404(expense_id)
+
+    # Permisos: admin puede borrar cualquiera, usuario solo los suyos
+    if not user.is_admin and expense.user_id != user.id:
+        return redirect(url_for("flujo"))
+
+    db.session.delete(expense)
+    db.session.commit()
+    return redirect(url_for("flujo"))
+
+
 # ---------------------------------------------------------
-# DASHBOARD (ROBUSTO + ALERTAS)
+# DASHBOARD
 # ---------------------------------------------------------
 
 @app.route("/dashboard")
@@ -1077,13 +1074,20 @@ def dashboard():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+
     # Filtros de fecha + presets rápidos
     date_from = request.args.get("date_from") or ""
     date_to = request.args.get("date_to") or ""
     preset = request.args.get("preset") or ""
 
-    # Base query limitada por usuario
-    sales_query = user_scope_query(Sale)
+    # Base query por usuario
+    if user.is_admin:
+        sales_query = Sale.query
+    else:
+        sales_query = Sale.query.filter(Sale.user_id == user.id)
 
     d_from = None
     d_to = None
@@ -1097,10 +1101,10 @@ def dashboard():
         elif preset == "4weeks":        # últimas 4 semanas (28 días)
             d_to = today
             d_from = today - datetime.timedelta(days=28)
-        elif preset == "month":         # este mes (desde el día 1)
+        elif preset == "month":         # este mes
             d_to = today
             d_from = today.replace(day=1)
-        elif preset == "year":          # este año (desde 1 de enero)
+        elif preset == "year":          # este año
             d_to = today
             d_from = today.replace(month=1, day=1)
 
@@ -1122,12 +1126,8 @@ def dashboard():
     total_monto_period = sum(float(s.total or 0) for s in sales)
     total_ventas_period = len(sales)
 
-    avg_ticket = (
-        total_monto_period / total_ventas_period if total_ventas_period > 0 else 0.0
-    )
-    avg_profit_per_sale = (
-        total_ganancia / total_ventas_period if total_ventas_period > 0 else 0.0
-    )
+    avg_ticket = total_monto_period / total_ventas_period if total_ventas_period > 0 else 0.0
+    avg_profit_per_sale = total_ganancia / total_ventas_period if total_ventas_period > 0 else 0.0
 
     # Promedio diario de utilidad (manejo robusto de fecha)
     profit_by_day = defaultdict(float)
@@ -1157,7 +1157,7 @@ def dashboard():
     top_labels = [name for name, _ in top_items]
     top_values = [round(value, 2) for _, value in top_items]
 
-    # Ganancias por semana (ISO week) con manejo robusto de fechas
+    # Ganancias por semana (ISO week)
     profit_by_week = defaultdict(float)
     for s in sales:
         d = s.date
@@ -1181,31 +1181,37 @@ def dashboard():
     week_labels = [k for k, _ in weeks_sorted]
     week_values = [round(v, 2) for _, v in weeks_sorted]
 
-    # Ganancia por usuario del sistema (solo tendrá sentido de verdad para admin;
-    # para usuario normal normalmente verá solo su usuario)
+    # Ganancia por usuario del sistema (solo tiene sentido para admin)
     profit_by_user = defaultdict(float)
-    for s in sales:
-        if s.user:
-            profit_by_user[s.user.username] += float(s.profit or 0)
+    if user.is_admin:
+        for s in sales:
+            if s.user:
+                profit_by_user[s.user.username] += float(s.profit or 0)
 
     user_items = sorted(profit_by_user.items(), key=lambda x: x[1], reverse=True)
     user_labels = [u for u, _ in user_items]
     user_values = [round(v, 2) for _, v in user_items]
 
     # -------------------------------------------------
-    # ALERTAS AUTOMÁTICAS (a nivel del alcance del usuario)
+    # ALERTAS AUTOMÁTICAS (a nivel del usuario actual)
     # -------------------------------------------------
     alerts = []
 
     today = datetime.date.today()
 
-    # 1) Ventas pendientes vencidas (filtradas por usuario)
-    pending_sales = user_scope_query(Sale).filter(Sale.status == "Pendiente").all()
-    old_pending = []
-    upcoming_pending = []
+    # 1) Ventas pendientes con más de 1 día de antigüedad
+    if user.is_admin:
+        pending_sales_query = Sale.query.filter(Sale.status == "Pendiente")
+    else:
+        pending_sales_query = Sale.query.filter(
+            Sale.status == "Pendiente",
+            Sale.user_id == user.id
+        )
 
+    pending_sales = pending_sales_query.all()
+    old_pending = []
     for s in pending_sales:
-        d = s.payment_due_date or s.date
+        d = s.date
         if not d:
             continue
         if isinstance(d, datetime.datetime):
@@ -1215,49 +1221,39 @@ def dashboard():
                 d = datetime.date.fromisoformat(d)
             except Exception:
                 continue
-
-        if d < today:
+        if d <= today - datetime.timedelta(days=1):
             old_pending.append(s)
-        elif d <= today + datetime.timedelta(days=2):
-            upcoming_pending.append(s)
 
     if old_pending:
         total_pend_antiguo = sum(float(s.total or 0) for s in old_pending)
         alerts.append({
-            "level": "danger",
-            "title": "Pagos vencidos",
-            "message": (
-                f"Tienes {len(old_pending)} ventas pendientes con fecha de pago vencida "
-                f"por un monto total aproximado de ₡{format_num(total_pend_antiguo)}. "
-                "Revisa los cobros atrasados."
-            ),
-        })
-
-    if upcoming_pending and not old_pending:
-        total_pend_prox = sum(float(s.total or 0) for s in upcoming_pending)
-        alerts.append({
             "level": "warning",
-            "title": "Pagos próximos a vencer",
+            "title": "Ventas pendientes con antigüedad",
             "message": (
-                f"En los próximos 2 días se vencen {len(upcoming_pending)} ventas "
-                f"por un monto de aproximadamente ₡{format_num(total_pend_prox)}. "
-                "Anticípate y coordina los cobros."
+                f"Tienes {len(old_pending)} ventas pendientes con más de 1 día "
+                f"por un monto total aproximado de ₡{format_num(total_pend_antiguo)}. "
+                "Revisa los cobros para no perder liquidez."
             ),
         })
 
-    # 2) Utilidad semanal por debajo de un umbral objetivo (limitada al usuario)
+    # 2) Utilidad semanal por debajo de un umbral objetivo (por usuario)
     seven_days_ago = today - datetime.timedelta(days=7)
     try:
-        weekly_sales = (
-            user_scope_query(Sale)
-            .filter(Sale.date >= seven_days_ago, Sale.date <= today)
-            .all()
-        )
+        if user.is_admin:
+            weekly_sales = Sale.query.filter(
+                Sale.date >= seven_days_ago,
+                Sale.date <= today
+            ).all()
+        else:
+            weekly_sales = Sale.query.filter(
+                Sale.user_id == user.id,
+                Sale.date >= seven_days_ago,
+                Sale.date <= today
+            ).all()
         weekly_profit = sum(float(s.profit or 0) for s in weekly_sales)
     except Exception:
         weekly_profit = 0.0
 
-    # Umbral configurable vía variable de entorno (opcional)
     min_weekly_profit_str = os.environ.get("ALERT_WEEKLY_PROFIT_MIN", "").strip()
     try:
         min_weekly_profit = float(min_weekly_profit_str) if min_weekly_profit_str else 0.0
@@ -1286,13 +1282,11 @@ def dashboard():
         total_ganancia=total_ganancia,
         date_from=date_from,
         date_to=date_to,
-        # métricas nuevas:
         total_ventas_period=total_ventas_period,
         total_monto_period=total_monto_period,
         avg_ticket=avg_ticket,
         avg_profit_per_sale=avg_profit_per_sale,
         avg_daily_profit=avg_daily_profit,
-        # alertas:
         alerts=alerts,
         weekly_profit=weekly_profit,
         min_weekly_profit=min_weekly_profit,
@@ -1300,23 +1294,7 @@ def dashboard():
 
 
 # ---------------------------------------------------------
-# API AUXILIAR PARA SPA (si la usas, por ejemplo para recargar charts)
-# ---------------------------------------------------------
-
-@app.route("/api/ventas/productos-mapping")
-def api_product_mapping():
-    if not session.get("user_id"):
-        return jsonify({"error": "not_authenticated"}), 401
-
-    products = user_scope_query(Product).order_by(Product.name).all()
-    mapping = {
-        p.name: {"cost": float(p.cost or 0), "price": float(p.price or 0)} for p in products
-    }
-    return jsonify(mapping)
-
-
-# ---------------------------------------------------------
-# MAIN
+# MAIN (solo para desarrollo local)
 # ---------------------------------------------------------
 
 if __name__ == "__main__":
