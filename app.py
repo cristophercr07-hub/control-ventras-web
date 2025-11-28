@@ -25,27 +25,25 @@ app = Flask(__name__)
 
 # SECRET_KEY desde variable de entorno (más seguro en producción)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-key-change-me")
-
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Cookies de sesión más seguras
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
-# --------- CONFIG BD: Postgres (si hay DATABASE_URL) o SQLite local ---------
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-sqlite_path = os.path.join(BASE_DIR, "ventas.db")
+# Configuración de la BD (Postgres si hay DATABASE_URL, si no SQLite local)
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-db_url = os.environ.get("DATABASE_URL")
-
-if db_url:
-    # Render y otros servicios a veces dan 'postgres://', SQLAlchemy espera 'postgresql://'
-    if db_url.startswith("postgres://"):
-        db_url = db_url.replace("postgres://", "postgresql://", 1)
-    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+if DATABASE_URL:
+    # Render y otros PaaS a veces usan "postgres://" en lugar de "postgresql://"
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 else:
-    # Respaldo local: SQLite
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{sqlite_path}"
+    # Fallback a SQLite local
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+    db_path = os.path.join(BASE_DIR, "ventas.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 
 db = SQLAlchemy(app)
 
@@ -54,22 +52,23 @@ MIN_MARGIN_PERCENT = 7.0
 
 
 # ---------------------------------------------------------
-# FILTROS JINJA
+# FILTRO JINJA PARA FORMATEAR NÚMEROS (₡ 1.234.567,89)
 # ---------------------------------------------------------
 
 @app.template_filter("format_num")
-def format_num_filter(value):
+def format_num(value):
     """
-    Formatea números con miles usando punto y decimales con coma:
-    1234567.89 -> '1.234.567,89'
+    Formatea números con separador de miles '.' y decimales ','.
+    Ej: 1234567.89 -> '1.234.567,89'
     """
     try:
-        num = float(value or 0)
+        num = float(value)
     except (TypeError, ValueError):
         return "0,00"
-
-    s = f"{num:,.2f}"  # Ej: '1,234,567.89'
-    s = s.replace(",", "_").replace(".", ",").replace("_", ".")
+    # '1,234,567.89'
+    s = f"{num:,.2f}"
+    # Cambiar a formato latino: '.' miles, ',' decimales
+    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
     return s
 
 
@@ -142,22 +141,21 @@ def require_login():
 # ---------------------------------------------------------
 
 with app.app_context():
-    # Crea tablas si no existen (en la BD que esté configurada)
     db.create_all()
 
-    # Intentar asegurar que exista la columna user_id en tabla sale
+    # Asegurar que la tabla sale tenga la columna user_id (para instalaciones anteriores)
+    inspector = inspect(db.engine)
     try:
-        inspector = inspect(db.engine)
         cols = [col["name"] for col in inspector.get_columns("sale")]
-        if "user_id" not in cols:
-            try:
-                db.session.execute("ALTER TABLE sale ADD COLUMN user_id INTEGER")
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
     except Exception:
-        # Si la tabla aún no existe o hay problema de inspección, ignoramos
-        pass
+        cols = []
+
+    if "user_id" not in cols:
+        try:
+            db.session.execute("ALTER TABLE sale ADD COLUMN user_id INTEGER")
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
     # Crear o actualizar usuario admin usando variables de entorno
     admin_username = os.environ.get("ADMIN_USER", "admin")
@@ -665,7 +663,8 @@ def flujo():
         return redirect(url_for("login"))
 
     error = None
-    success = None
+    # leemos también success desde la querystring (para cuando borramos)
+    success = request.args.get("success")
 
     if request.method == "POST":
         try:
@@ -748,6 +747,19 @@ def flujo():
         ahorro_faltante=ahorro_faltante,
         meta_cumplida=meta_cumplida,
     )
+
+
+@app.post("/flujo/<int:expense_id>/delete")
+def delete_expense(expense_id):
+    """Eliminar un movimiento de flujo (gasto / reinversión)."""
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    expense = Expense.query.get_or_404(expense_id)
+    db.session.delete(expense)
+    db.session.commit()
+
+    return redirect(url_for("flujo", success="Movimiento eliminado correctamente."))
 
 
 @app.route("/flujo/export")
@@ -921,7 +933,7 @@ def dashboard():
 
     today = datetime.date.today()
 
-    # 1) Ventas pendientes con más de 1 día de antigüedad (manejo robusto de fecha)
+    # 1) Ventas pendientes con más de 1 día de antigüedad
     pending_sales = Sale.query.filter(Sale.status == "Pendiente").all()
     old_pending = []
     for s in pending_sales:
@@ -1008,5 +1020,5 @@ def dashboard():
 # ---------------------------------------------------------
 
 if __name__ == "__main__":
-    # En local, debug=True. En producción (Render) usas gunicorn, no este bloque.
+    # En local debug=True; en Render se usa gunicorn
     app.run(debug=True)
