@@ -13,12 +13,12 @@ from flask import (
     send_file,
 )
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import inspect
 from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
-from sqlalchemy import inspect, text  # ← IMPORTANTE: text agregado
 
 # ---------------------------------------------------------
-# CONFIGURACIÓN BÁSICA (Postgres en Render, SQLite local)
+# CONFIGURACIÓN BÁSICA
 # ---------------------------------------------------------
 
 app = Flask(__name__)
@@ -26,10 +26,9 @@ app = Flask(__name__)
 # SECRET_KEY desde variable de entorno (más seguro en producción)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-key-change-me")
 
-# Seleccionar BD: Postgres (DATABASE_URL) o SQLite local
-database_url = os.environ.get("DATABASE_URL", "").strip()
+# DATABASE_URL (Render / Postgres) con fallback a SQLite local
+database_url = os.environ.get("DATABASE_URL")
 if database_url:
-    # Render suele usar postgres://, SQLAlchemy espera postgresql://
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
@@ -51,22 +50,29 @@ MIN_MARGIN_PERCENT = 7.0
 
 
 # ---------------------------------------------------------
-# FILTRO JINJA PARA FORMATEO DE NÚMEROS
+# FILTROS JINJA PARA FORMATEO DE NÚMEROS
 # ---------------------------------------------------------
 
 @app.template_filter("format_num")
 def format_num(value):
     """
-    Formatea números como: 12.345,67
-    (punto miles, coma decimales).
+    Formatea números como: 1.234,56 (estilo CR).
     """
     try:
-        value = float(value or 0)
-    except (TypeError, ValueError):
-        return "0,00"
-    text_num = f"{value:,.2f}"  # 12,345.67
-    text_num = text_num.replace(",", "X").replace(".", ",").replace("X", ".")
-    return text_num
+        n = float(value or 0)
+    except Exception:
+        return value
+    s = f"{n:,.2f}"  # 1,234.56
+    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
+    return s
+
+
+@app.template_filter("format_currency")
+def format_currency(value):
+    try:
+        return f"₡{format_num(value)}"
+    except Exception:
+        return value
 
 
 # ---------------------------------------------------------
@@ -80,16 +86,6 @@ class User(db.Model):
     is_admin = db.Column(db.Boolean, default=False)
 
 
-class Customer(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), unique=True, nullable=False)
-    phone = db.Column(db.String(50))
-    email = db.Column(db.String(120))
-    notes = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    active = db.Column(db.Boolean, default=True)
-
-
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), unique=True, nullable=False)
@@ -98,10 +94,19 @@ class Product(db.Model):
     margin_percent = db.Column(db.Float, default=0.0)
 
 
+class Customer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), unique=True, nullable=False)
+    phone = db.Column(db.String(50))
+    email = db.Column(db.String(120))
+    notes = db.Column(db.String(255))
+    active = db.Column(db.Boolean, default=True)
+
+
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
-    name = db.Column(db.String(120), nullable=False)      # cliente (texto)
+    name = db.Column(db.String(120), nullable=False)      # nombre del cliente (texto)
     product = db.Column(db.String(120), nullable=False)
     status = db.Column(db.String(20), nullable=False)     # Pagado / Pendiente
     cost_per_unit = db.Column(db.Float, default=0.0)
@@ -115,10 +120,8 @@ class Sale(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     user = db.relationship("User", backref="sales", lazy=True)
 
-    # Fecha de vencimiento de pago (para ventas Pendientes)
+    # Fecha de vencimiento de pago (para estado Pendiente)
     payment_due_date = db.Column(db.Date, nullable=True)
-    # Fecha/hora en que se marcó como pagado (opcional, para referencia)
-    paid_at = db.Column(db.DateTime, nullable=True)
 
 
 class Expense(db.Model):
@@ -149,39 +152,31 @@ def require_login():
 
 
 # ---------------------------------------------------------
-# INICIALIZACIÓN DE LA BD + ADMIN
+# INICIALIZACIÓN DE LA BD, MIGRACIONES BÁSICAS Y ADMIN
 # ---------------------------------------------------------
 
 with app.app_context():
     db.create_all()
 
-    # Asegurar columnas nuevas en tabla 'sale' (para instalaciones anteriores)
     inspector = inspect(db.engine)
+
+    # Asegurar que la tabla sale tenga la columna user_id
     try:
-        cols = [col["name"] for col in inspector.get_columns("sale")]
+        cols_sale = [col["name"] for col in inspector.get_columns("sale")]
+        if "user_id" not in cols_sale:
+            db.session.execute("ALTER TABLE sale ADD COLUMN user_id INTEGER")
+            db.session.commit()
     except Exception:
-        cols = []
+        db.session.rollback()
 
-    if "user_id" not in cols:
-        try:
-            db.session.execute(text("ALTER TABLE sale ADD COLUMN user_id INTEGER"))
+    # Asegurar que la tabla sale tenga la columna payment_due_date
+    try:
+        cols_sale = [col["name"] for col in inspector.get_columns("sale")]
+        if "payment_due_date" not in cols_sale:
+            db.session.execute("ALTER TABLE sale ADD COLUMN payment_due_date DATE")
             db.session.commit()
-        except Exception:
-            db.session.rollback()
-
-    if "payment_due_date" not in cols:
-        try:
-            db.session.execute(text("ALTER TABLE sale ADD COLUMN payment_due_date DATE"))
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-
-    if "paid_at" not in cols:
-        try:
-            db.session.execute(text("ALTER TABLE sale ADD COLUMN paid_at TIMESTAMP"))
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+    except Exception:
+        db.session.rollback()
 
     # Crear o actualizar usuario admin usando variables de entorno
     admin_username = os.environ.get("ADMIN_USER", "admin")
@@ -202,7 +197,6 @@ with app.app_context():
                 is_admin=True,
             )
         else:
-            # Fallback para desarrollo local: admin / admin
             admin = User(
                 username="admin",
                 password_hash=generate_password_hash("admin"),
@@ -298,7 +292,6 @@ def usuarios():
 
 @app.post("/usuarios/<int:user_id>/delete")
 def delete_user(user_id):
-    """Eliminar usuario (solo admin). El admin no puede eliminarse a sí mismo."""
     if not session.get("user_id"):
         return redirect(url_for("login"))
     if not session.get("is_admin"):
@@ -318,6 +311,71 @@ def delete_user(user_id):
     db.session.delete(user)
     db.session.commit()
     return redirect(url_for("usuarios", success="Usuario eliminado correctamente."))
+
+
+# ---------------------------------------------------------
+# CLIENTES
+# ---------------------------------------------------------
+
+@app.route("/clientes", methods=["GET", "POST"])
+def clientes():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    error = None
+    success = None
+
+    if request.method == "POST":
+        try:
+            name = (request.form.get("name") or "").strip()
+            phone = (request.form.get("phone") or "").strip()
+            email = (request.form.get("email") or "").strip()
+            notes = (request.form.get("notes") or "").strip()
+            active = bool(request.form.get("active"))
+
+            if not name:
+                raise ValueError("El nombre del cliente es obligatorio.")
+
+            existing = Customer.query.filter_by(name=name).first()
+            if existing:
+                existing.phone = phone
+                existing.email = email
+                existing.notes = notes
+                existing.active = active
+                db.session.commit()
+                success = "Cliente actualizado correctamente."
+            else:
+                c = Customer(
+                    name=name,
+                    phone=phone,
+                    email=email,
+                    notes=notes,
+                    active=active,
+                )
+                db.session.add(c)
+                db.session.commit()
+                success = "Cliente creado correctamente."
+        except Exception as e:
+            error = f"Error al guardar cliente: {e}"
+
+    customers = Customer.query.order_by(Customer.name).all()
+    return render_template(
+        "clientes.html",
+        error=error,
+        success=success,
+        customers=customers,
+    )
+
+
+@app.post("/clientes/<int:customer_id>/delete")
+def delete_customer(customer_id):
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    customer = Customer.query.get_or_404(customer_id)
+    db.session.delete(customer)
+    db.session.commit()
+    return redirect(url_for("clientes"))
 
 
 # ---------------------------------------------------------
@@ -343,7 +401,6 @@ def productos():
     error = None
     success = None
 
-    # Valores por defecto para la calculadora
     product_name_input = ""
     cost_input = ""
     margin_input = f"{MIN_MARGIN_PERCENT:.2f}"
@@ -356,7 +413,6 @@ def productos():
     if request.method == "POST":
         form_type = (request.form.get("form_type") or "calculator").strip()
 
-        # --- LÓGICA DE CALCULADORA ---
         if form_type == "calculator":
             try:
                 product_name_input = (request.form.get("product_name") or "").strip()
@@ -403,7 +459,6 @@ def productos():
             except Exception as e:
                 error = f"Error en la calculadora: {e}"
 
-        # --- LÓGICA DE FORMULARIO DIRECTO DE CATÁLOGO ---
         elif form_type == "catalog":
             try:
                 name = (request.form.get("name") or "").strip()
@@ -476,60 +531,6 @@ def calculadora():
 
 
 # ---------------------------------------------------------
-# CLIENTES
-# ---------------------------------------------------------
-
-@app.route("/clientes", methods=["GET", "POST"])
-def clientes():
-    if not session.get("user_id"):
-        return redirect(url_for("login"))
-
-    error = None
-    success = None
-
-    if request.method == "POST":
-        try:
-            name = (request.form.get("name") or "").strip()
-            phone = (request.form.get("phone") or "").strip()
-            email = (request.form.get("email") or "").strip()
-            notes = (request.form.get("notes") or "").strip()
-            active = bool(request.form.get("active"))
-
-            if not name:
-                raise ValueError("El nombre del cliente es obligatorio.")
-
-            existing = Customer.query.filter_by(name=name).first()
-            if existing:
-                existing.phone = phone
-                existing.email = email
-                existing.notes = notes
-                existing.active = active
-                db.session.commit()
-                success = "Cliente actualizado correctamente."
-            else:
-                c = Customer(
-                    name=name,
-                    phone=phone,
-                    email=email,
-                    notes=notes,
-                    active=active,
-                )
-                db.session.add(c)
-                db.session.commit()
-                success = "Cliente creado correctamente."
-        except Exception as e:
-            error = f"Error al guardar cliente: {e}"
-
-    customers = Customer.query.order_by(Customer.name).all()
-    return render_template(
-        "clientes.html",
-        error=error,
-        success=success,
-        customers=customers,
-    )
-
-
-# ---------------------------------------------------------
 # VENTAS
 # ---------------------------------------------------------
 
@@ -564,7 +565,21 @@ def ventas():
             date_str = request.form.get("date")
             date = parse_date(date_str) or datetime.date.today()
 
-            name = (request.form.get("name") or "").strip()
+            customer_id_str = request.form.get("customer_id") or ""
+            if not customer_id_str:
+                raise ValueError("Debes seleccionar un cliente.")
+
+            try:
+                customer_id = int(customer_id_str)
+            except ValueError:
+                raise ValueError("Cliente seleccionado no es válido.")
+
+            customer = Customer.query.get(customer_id)
+            if not customer:
+                raise ValueError("El cliente seleccionado no existe.")
+
+            name = customer.name
+
             product_from_select = (request.form.get("product_select") or "").strip()
             product_input = (request.form.get("product") or "").strip()
             product = product_input or product_from_select
@@ -578,8 +593,6 @@ def ventas():
             payment_due_str = request.form.get("payment_due_date") or ""
             payment_due_date = parse_date(payment_due_str)
 
-            if not name:
-                raise ValueError("El nombre del cliente es obligatorio.")
             if not product:
                 raise ValueError("Debes seleccionar o escribir un producto.")
             if quantity <= 0:
@@ -608,7 +621,6 @@ def ventas():
         except Exception as e:
             error = f"Error al guardar la venta: {e}"
 
-    # Filtros (GET)
     filter_name = request.args.get("filter_name") or ""
     filter_status = request.args.get("filter_status") or ""
     date_from = request.args.get("date_from") or ""
@@ -627,7 +639,6 @@ def ventas():
 
     sales = query.order_by(Sale.date.desc(), Sale.id.desc()).all()
 
-    # Totales
     total_ventas = len(sales)
     total_monto = sum(float(s.total or 0) for s in sales)
     total_ganancia = sum(float(s.profit or 0) for s in sales)
@@ -636,6 +647,7 @@ def ventas():
 
     products = Product.query.order_by(Product.name).all()
     users = User.query.order_by(User.username).all()
+    customers = Customer.query.filter_by(active=True).order_by(Customer.name).all()
 
     product_mapping = {
         p.name: {"cost": float(p.cost or 0), "price": float(p.price or 0)}
@@ -649,6 +661,7 @@ def ventas():
         sales=sales,
         products=products,
         users=users,
+        customers=customers,
         filter_name=filter_name,
         filter_status=filter_status,
         date_from=date_from,
@@ -674,7 +687,7 @@ def delete_sale(sale_id):
     return redirect(url_for("ventas", success="Venta eliminada correctamente."))
 
 
-@app.post("/ventas/<int:sale_id>/mark_paid")
+@app.post("/ventas/<int:sale_id>/paid")
 def mark_sale_paid(sale_id):
     if not session.get("user_id"):
         return redirect(url_for("login"))
@@ -682,7 +695,6 @@ def mark_sale_paid(sale_id):
     sale = Sale.query.get_or_404(sale_id)
     sale.status = "Pagado"
     sale.payment_due_date = None
-    sale.paid_at = datetime.datetime.utcnow()
     db.session.commit()
     return redirect(url_for("ventas", success="Venta marcada como pagada."))
 
@@ -714,15 +726,15 @@ def ventas_export():
     for s in sales:
         rows.append({
             "Fecha": s.date.isoformat() if s.date else "",
-            "Nombre / Cliente": s.name,
+            "Cliente": s.name,
             "Producto": s.product,
             "Estado": s.status,
+            "Fecha de pago": s.payment_due_date.isoformat() if s.payment_due_date else "",
             "Costo por unidad": s.cost_per_unit,
             "Precio por unidad": s.price_per_unit,
             "Cantidad": s.quantity,
             "Total": s.total,
             "Ganancia": s.profit,
-            "Fecha vencimiento pago": s.payment_due_date.isoformat() if s.payment_due_date else "",
             "Comentario": s.comment or "",
             "Usuario": s.user.username if getattr(s, "user", None) else "",
         })
@@ -894,7 +906,7 @@ def flujo_export():
 
 
 # ---------------------------------------------------------
-# DASHBOARD (MÉTRICAS + ALERTAS)
+# DASHBOARD
 # ---------------------------------------------------------
 
 @app.route("/dashboard")
@@ -913,17 +925,16 @@ def dashboard():
 
     if preset:
         today = datetime.date.today()
-
-        if preset == "week":            # últimos 7 días
+        if preset == "week":
             d_to = today
             d_from = today - datetime.timedelta(days=7)
-        elif preset == "4weeks":        # últimas 4 semanas (28 días)
+        elif preset == "4weeks":
             d_to = today
             d_from = today - datetime.timedelta(days=28)
-        elif preset == "month":         # este mes (desde el día 1)
+        elif preset == "month":
             d_to = today
             d_from = today.replace(day=1)
-        elif preset == "year":          # este año (desde 1 de enero)
+        elif preset == "year":
             d_to = today
             d_from = today.replace(month=1, day=1)
 
@@ -940,7 +951,6 @@ def dashboard():
 
     sales = sales_query.order_by(Sale.date).all()
 
-    # Métricas del periodo filtrado
     total_ganancia = sum(float(s.profit or 0) for s in sales)
     total_monto_period = sum(float(s.total or 0) for s in sales)
     total_ventas_period = len(sales)
@@ -948,7 +958,6 @@ def dashboard():
     avg_ticket = total_monto_period / total_ventas_period if total_ventas_period > 0 else 0.0
     avg_profit_per_sale = total_ganancia / total_ventas_period if total_ventas_period > 0 else 0.0
 
-    # Promedio diario de utilidad
     profit_by_day = defaultdict(float)
     for s in sales:
         d = s.date
@@ -966,7 +975,6 @@ def dashboard():
     num_dias = len(profit_by_day)
     avg_daily_profit = total_ganancia / num_dias if num_dias > 0 else 0.0
 
-    # Top productos por ganancia
     profit_by_product = defaultdict(float)
     for s in sales:
         profit_by_product[s.product] += float(s.profit or 0)
@@ -976,7 +984,6 @@ def dashboard():
     top_labels = [name for name, _ in top_items]
     top_values = [round(value, 2) for _, value in top_items]
 
-    # Ganancias por semana (ISO week)
     profit_by_week = defaultdict(float)
     for s in sales:
         d = s.date
@@ -1000,7 +1007,6 @@ def dashboard():
     week_labels = [k for k, _ in weeks_sorted]
     week_values = [round(v, 2) for _, v in weeks_sorted]
 
-    # Ganancia por usuario del sistema
     profit_by_user = defaultdict(float)
     for s in sales:
         if s.user:
@@ -1010,36 +1016,24 @@ def dashboard():
     user_labels = [u for u, _ in user_items]
     user_values = [round(v, 2) for _, v in user_items]
 
-    # -------------------------------------------------
-    # ALERTAS AUTOMÁTICAS
-    # -------------------------------------------------
     alerts = []
     today = datetime.date.today()
 
-    # 1) Ventas pendientes con más de 1 día de antigüedad
     pending_sales = Sale.query.filter(Sale.status == "Pendiente").all()
     old_pending = []
-    upcoming_due = []
-    overdue_due = []
-
     for s in pending_sales:
         d = s.date
+        if not d:
+            continue
         if isinstance(d, datetime.datetime):
             d = d.date()
-
-        if d and d <= today - datetime.timedelta(days=1):
+        if isinstance(d, str):
+            try:
+                d = datetime.date.fromisoformat(d)
+            except Exception:
+                continue
+        if d <= today - datetime.timedelta(days=1):
             old_pending.append(s)
-
-        # Vencimientos de pago
-        due = s.payment_due_date
-        if isinstance(due, datetime.datetime):
-            due = due.date()
-
-        if due:
-            if due < today:
-                overdue_due.append(s)
-            elif today <= due <= today + datetime.timedelta(days=2):
-                upcoming_due.append(s)
 
     if old_pending:
         total_pend_antiguo = sum(float(s.total or 0) for s in old_pending)
@@ -1053,32 +1047,6 @@ def dashboard():
             ),
         })
 
-    if upcoming_due:
-        total_upcoming = sum(float(s.total or 0) for s in upcoming_due)
-        alerts.append({
-            "level": "info",
-            "title": "Pagos por vencer pronto",
-            "message": (
-                f"Hay {len(upcoming_due)} ventas pendientes con fecha de pago en los "
-                "próximos 2 días por aproximadamente "
-                f"₡{format_num(total_upcoming)}. "
-                "Asegúrate de contactar a tus clientes a tiempo."
-            ),
-        })
-
-    if overdue_due:
-        total_overdue = sum(float(s.total or 0) for s in overdue_due)
-        alerts.append({
-            "level": "danger",
-            "title": "Pagos vencidos",
-            "message": (
-                f"Hay {len(overdue_due)} ventas pendientes con fecha de pago vencida "
-                f"por un total aproximado de ₡{format_num(total_overdue)}. "
-                "Prioriza el seguimiento de estos cobros."
-            ),
-        })
-
-    # 2) Utilidad semanal por debajo de un umbral objetivo
     seven_days_ago = today - datetime.timedelta(days=7)
     try:
         weekly_sales = Sale.query.filter(
