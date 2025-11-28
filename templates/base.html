@@ -20,15 +20,16 @@
 
     <style>
         :root {
-            /* Paleta Matrix oscura */
             --bg-main: #020a02;
             --bg-card: #050b06;
             --bg-card-soft: #07100a;
             --border-soft: #1b3b24;
             --text-main: #e8f5e9;
-            --text-secondary: #9ccc9c;
+            --text-secondary: #b0c9b1;
             --accent: #00ff41;
             --accent-soft: rgba(0, 255, 65, 0.20);
+            --table-header-bg: #c8f5d0;
+            --table-header-text: #021506;
         }
 
         html, body {
@@ -74,29 +75,29 @@
             color: var(--text-secondary) !important;
             font-size: 0.9rem;
             position: relative;
-            transition: color 0.15s ease, transform 0.15s ease;
+            transition: color 0.2s ease;
         }
 
         .nav-link::after {
             content: "";
             position: absolute;
-            left: 0;
-            bottom: -4px;
-            width: 0;
+            left: 10%;
+            right: 10%;
+            bottom: 0;
             height: 2px;
-            background: var(--accent);
-            transition: width 0.18s ease;
-        }
-
-        .nav-link:hover::after,
-        .nav-link.active::after {
-            width: 100%;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            transform: scaleX(0);
+            transform-origin: center;
+            transition: transform 0.2s ease-out;
         }
 
         .nav-link:hover,
         .nav-link.active {
             color: var(--accent) !important;
-            transform: translateY(-1px);
+        }
+
+        .nav-link.active::after {
+            transform: scaleX(1);
         }
 
         /* CARDS / CONTENEDORES */
@@ -168,7 +169,6 @@
             color: var(--accent);
         }
 
-        /* TABLAS */
         .table-dark-custom {
             color: var(--text-main);
             background-color: #020502;
@@ -176,22 +176,16 @@
         }
 
         .table-dark-custom thead th {
+            background-color: var(--table-header-bg);
+            color: var(--table-header-text);
             border-bottom: 1px solid var(--border-soft);
-            color: #4caf50; /* verde oscuro para títulos */
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             text-align: center;
-            font-weight: 600;
         }
 
         .table-dark-custom tbody td {
-            font-size: 0.9rem;
-            padding: 0.55rem 0.5rem;
-            text-align: center;
+            font-size: 0.8rem;
             vertical-align: middle;
-        }
-
-        .table-dark-custom tbody td.text-end {
-            text-align: center !important;
         }
 
         .table-dark-custom tbody tr:nth-child(even) {
@@ -227,28 +221,15 @@
             box-shadow: 0 0 10px rgba(0, 255, 65, 0.25);
         }
 
-        .highlight-number {
-            font-size: 1.4rem;
-            font-weight: 700;
-            letter-spacing: 0.03em;
-        }
-
-        /* Estilo para el botón del calendario en inputs de fecha */
-        input[type="date"] {
-            position: relative;
-        }
-
-        /* Navegadores WebKit (Chrome, Edge, Safari, iOS) */
+        /* Icono calendario de inputs date */
         input[type="date"]::-webkit-calendar-picker-indicator {
-            background-color: #66ff88;  /* verde claro tipo botón */
+            background-color: var(--accent-soft);
             border-radius: 4px;
             padding: 2px;
-            cursor: pointer;
         }
 
-        input[type="date"].form-control-sm {
-            background-color: #020502;
-            color: var(--text-main);
+        input[type="date"] {
+            color-scheme: dark;
         }
 
         @media (max-width: 576px) {
@@ -288,6 +269,12 @@
                             <a class="nav-link spa-link {% if request.endpoint == 'productos' %}active{% endif %}"
                                href="{{ url_for('productos') }}">
                                 Productos
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link spa-link {% if request.endpoint == 'clientes' %}active{% endif %}"
+                               href="{{ url_for('clientes') }}">
+                                Clientes
                             </a>
                         </li>
                         <li class="nav-item">
@@ -343,8 +330,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Fondo Matrix -->
     <script>
+        // Fondo Matrix
         (function() {
             const canvas = document.getElementById('matrixCanvas');
             if (!canvas) return;
@@ -389,169 +376,44 @@
         })();
     </script>
 
-    <!-- Navegación tipo SPA + pestaña activa + lógica Ventas & Dashboard -->
+    <script>
+        // Confirmación doble genérica (varias tablas)
+        function doubleConfirm(msg1, msg2) {
+            if (!confirm(msg1)) return false;
+            return confirm(msg2);
+        }
+    </script>
+
+    <!-- Navegación tipo SPA -->
     <script>
         (function() {
             const content = document.getElementById('app-content');
 
-            function updateActiveNavFromUrl(url) {
-                try {
-                    const full = new URL(url, window.location.origin);
-                    const currentPath = full.pathname;
-                    const links = document.querySelectorAll('a.spa-link');
-                    links.forEach(link => {
-                        const href = link.getAttribute('href');
-                        if (!href || href.startsWith('http')) return;
-                        const linkUrl = new URL(href, window.location.origin);
-                        if (linkUrl.pathname === currentPath) {
-                            link.classList.add('active');
-                        } else {
-                            link.classList.remove('active');
-                        }
-                    });
-                } catch (e) {
-                    // ignorar errores
-                }
-            }
-
-            function initVentasPage() {
-                const dataTag = document.getElementById('product_mapping_data');
-                if (!dataTag) return;
-
-                let mapping = {};
-                try {
-                    mapping = JSON.parse(dataTag.textContent || '{}');
-                } catch (e) {
-                    mapping = {};
-                }
-
-                const select = document.getElementById('product_select');
-                const productInput = document.getElementById('product_input');
-                const costInput = document.getElementById('cost_per_unit');
-                const priceInput = document.getElementById('price_per_unit');
-
-                if (select) {
-                    select.addEventListener('change', function() {
-                        const name = this.value;
-                        if (name && mapping[name]) {
-                            if (productInput) productInput.value = name;
-                            if (costInput) costInput.value = mapping[name].cost;
-                            if (priceInput) priceInput.value = mapping[name].price;
-                        }
-                    });
-                }
-            }
-
-            function initDashboardPage() {
-                if (typeof Chart === 'undefined') return;
-
-                const dataEl = document.getElementById('dashboard_data');
-                if (!dataEl) return;
-
-                let topLabels = [], topData = [],
-                    weekLabels = [], weekData = [],
-                    userLabels = [], userData = [];
-
-                try {
-                    topLabels = JSON.parse(dataEl.dataset.topLabels || '[]');
-                    topData   = JSON.parse(dataEl.dataset.topValues || '[]');
-                    weekLabels = JSON.parse(dataEl.dataset.weekLabels || '[]');
-                    weekData   = JSON.parse(dataEl.dataset.weekValues || '[]');
-                    userLabels = JSON.parse(dataEl.dataset.userLabels || '[]');
-                    userData   = JSON.parse(dataEl.dataset.userValues || '[]');
-                } catch (e) {
-                    return;
-                }
-
-                const topCtx = document.getElementById('topProductsChart');
-                if (topCtx && topLabels.length > 0) {
-                    new Chart(topCtx, {
-                        type: 'doughnut',
-                        data: {
-                            labels: topLabels,
-                            datasets: [{ data: topData }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: { position: 'bottom', labels: { color: '#e8f5e9' } }
-                            }
-                        }
-                    });
-                }
-
-                const weekCtx = document.getElementById('weeklyProfitChart');
-                if (weekCtx && weekLabels.length > 0) {
-                    new Chart(weekCtx, {
-                        type: 'bar',
-                        data: {
-                            labels: weekLabels,
-                            datasets: [{
-                                label: 'Ganancia por semana',
-                                data: weekData
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                x: {
-                                    ticks: { color: '#e8f5e9' },
-                                    grid: { display: false }
-                                },
-                                y: {
-                                    ticks: { color: '#e8f5e9' },
-                                    grid: { color: 'rgba(232,245,233,0.15)' }
-                                }
-                            },
-                            plugins: {
-                                legend: { labels: { color: '#e8f5e9' } }
-                            }
-                        }
-                    });
-                }
-
-                const userCtx = document.getElementById('userProfitChart');
-                if (userCtx && userLabels.length > 0) {
-                    new Chart(userCtx, {
-                        type: 'doughnut',
-                        data: {
-                            labels: userLabels,
-                            datasets: [{ data: userData }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: { position: 'bottom', labels: { color: '#e8f5e9' } }
-                            }
-                        }
-                    });
-                }
-            }
-
-            function runPageInits(url) {
-                try {
-                    const full = new URL(url, window.location.origin);
-                    const path = full.pathname;
-                    if (path.startsWith('/ventas')) {
-                        initVentasPage();
+            function setActiveNav(href) {
+                const links = document.querySelectorAll('a.nav-link.spa-link');
+                links.forEach(l => {
+                    const linkHref = l.getAttribute('href');
+                    if (linkHref === href) {
+                        l.classList.add('active');
+                    } else {
+                        l.classList.remove('active');
                     }
-                    if (path.startsWith('/dashboard')) {
-                        initDashboardPage();
-                    }
-                } catch (e) {
-                    // ignorar
-                }
+                });
             }
 
-            // Confirm global para borrar venta
-            window.confirmDeleteSale = function(id) {
-                const first = confirm("¿Seguro que deseas eliminar la venta #" + id + "?");
-                if (!first) return false;
-                return confirm("Esta acción no se puede deshacer. Confirma nuevamente para eliminar.");
-            };
+            function executeInlineScripts(container) {
+                const scripts = container.querySelectorAll('script');
+                scripts.forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    if (oldScript.src) {
+                        newScript.src = oldScript.src;
+                    } else {
+                        newScript.textContent = oldScript.textContent;
+                    }
+                    document.body.appendChild(newScript);
+                    document.body.removeChild(newScript);
+                });
+            }
 
             function loadPage(url, pushState = true) {
                 if (!content) {
@@ -572,8 +434,8 @@
                         content.innerHTML = newContent.innerHTML;
                         if (newTitle) document.title = newTitle.textContent;
                         if (pushState) history.pushState({ url: url }, '', url);
-                        updateActiveNavFromUrl(url);
-                        runPageInits(url);
+                        setActiveNav(url);
+                        executeInlineScripts(content);
                     } else {
                         window.location.href = url;
                     }
@@ -595,16 +457,10 @@
             });
 
             window.addEventListener('popstate', function(e) {
-                const url = (e.state && e.state.url)
-                    ? e.state.url
-                    : window.location.pathname + window.location.search;
+                const url = (e.state && e.state.url) ? e.state.url : window.location.pathname;
                 loadPage(url, false);
+                setActiveNav(url);
             });
-
-            // Al cargar la página por primera vez
-            const currentUrl = window.location.pathname + window.location.search;
-            updateActiveNavFromUrl(currentUrl);
-            runPageInits(currentUrl);
         })();
     </script>
     {% endblock %}
