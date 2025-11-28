@@ -158,17 +158,21 @@ def login_required(f):
     return wrapper
 
 
-@app.before_first_request
 def init_db():
+    """Inicializa la base de datos y crea el usuario admin si no existe."""
     db.create_all()
 
-    # Crear usuario admin si no existe
     admin = User.query.filter_by(username="admin").first()
     if not admin:
         admin = User(username="admin", is_admin=True)
         admin.set_password("admin")
         db.session.add(admin)
         db.session.commit()
+
+
+# Llamamos a init_db una vez al cargar el módulo (compatible con Flask 3.x)
+with app.app_context():
+    init_db()
 
 
 # -----------------------------------------------------------------------------
@@ -551,7 +555,8 @@ def ventas():
                 except ValueError:
                     sale.client_id = None
 
-            sale.comment = comment  # si tienes columna comment en el modelo, si no quita esta línea
+            # 'comment' no está en la base de datos; se podría usar en el futuro
+            sale.comment = comment  # atributo dinámico para la instancia actual
 
             db.session.add(sale)
             db.session.commit()
@@ -604,7 +609,7 @@ def ventas():
     total_pagado = sum((s.total or 0) for s in sales if s.status == "Pagado")
     total_pendiente = total_monto - total_pagado
 
-    # Usuarios para filtro (solo para admin tiene sentido ver todos, pero mantenemos)
+    # Usuarios para filtro
     users = User.query.order_by(User.username).all()
 
     # Productos catálogo para autocompletar
