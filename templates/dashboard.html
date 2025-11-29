@@ -5,278 +5,214 @@
 
 <div class="row mb-4">
     <div class="col-12">
-        <div class="card p-4">
+        <div class="card-matrix p-4">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
                 <div>
-                    <h2 class="mb-1 text-accent">Dashboard de rendimiento</h2>
+                    <div class="small-label mb-1">Resumen general</div>
+                    <h4 class="fw-narrow mb-1">Panel de control</h4>
                     <p class="text-secondary-custom mb-0">
-                        Visualiza las principales métricas de tus ventas y utilidades.
+                        Filtra por rango de fechas o usa los atajos rápidos para analizar tu desempeño.
                     </p>
                 </div>
-                <form method="get" action="{{ url_for('dashboard') }}" class="mt-3 mt-md-0">
-                    <div class="row g-2 align-items-end">
-                        <div class="col-auto">
-                            <label class="form-label text-secondary-custom mb-1">Desde</label>
-                            <input type="date" name="date_from" class="form-control form-control-sm"
-                                   value="{{ date_from or '' }}">
-                        </div>
-                        <div class="col-auto">
-                            <label class="form-label text-secondary-custom mb-1">Hasta</label>
-                            <input type="date" name="date_to" class="form-control form-control-sm"
-                                   value="{{ date_to or '' }}">
-                        </div>
-                        <div class="col-auto">
-                            <label class="form-label text-secondary-custom mb-1">Rango rápido</label>
-                            <select name="preset" class="form-select form-select-sm">
-                                <option value="">Personalizado</option>
-                                <option value="week">Últimos 7 días</option>
-                                <option value="4weeks">Últimas 4 semanas</option>
-                                <option value="month">Este mes</option>
-                                <option value="year">Este año</option>
-                            </select>
-                        </div>
-                        <div class="col-auto">
-                            <button type="submit" class="btn btn-primary btn-sm mt-3 mt-md-0">
-                                <i class="bi bi-bar-chart-line me-1"></i> Aplicar
-                            </button>
-                        </div>
+                <form method="get" class="mt-3 mt-md-0 d-flex flex-wrap gap-2">
+                    <div class="d-flex gap-2">
+                        <input type="date" name="date_from" class="form-control form-control-sm"
+                               value="{{ date_from }}">
+                        <input type="date" name="date_to" class="form-control form-control-sm"
+                               value="{{ date_to }}">
                     </div>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="submit" name="preset" value="week" class="btn btn-outline-accent">7 días</button>
+                        <button type="submit" name="preset" value="4weeks" class="btn btn-outline-accent">4 semanas</button>
+                        <button type="submit" name="preset" value="month" class="btn btn-outline-accent">Mes</button>
+                        <button type="submit" name="preset" value="year" class="btn btn-outline-accent">Año</button>
+                    </div>
+                    <button type="submit" class="btn btn-accent btn-sm">
+                        <i class="bi bi-funnel me-1"></i>Aplicar
+                    </button>
                 </form>
             </div>
 
-            <!-- ALERTAS -->
-            <div class="mb-3">
-                <h5 class="text-accent mb-2">Alertas inteligentes</h5>
-                {% if alerts is defined and alerts and alerts|length > 0 %}
-                    {% for a in alerts %}
-                        {% if a.level == 'danger' %}
-                            {% set alert_class = 'alert-danger border-danger' %}
-                        {% elif a.level == 'warning' %}
-                            {% set alert_class = 'alert-warning border-warning text-dark' %}
-                        {% else %}
-                            {% set alert_class = 'alert-info border-info' %}
-                        {% endif %}
-                        <div class="alert {{ alert_class }} py-2 px-3 mb-2">
-                            <strong>{{ a.title }}:</strong>
-                            <span>{{ a.message|safe }}</span>
+            {% if alerts %}
+            <div class="row g-2 mb-2">
+                {% for alert in alerts %}
+                <div class="col-12 col-md-6">
+                    <div class="alert {% if alert.level == 'danger' %}alert-soft-danger{% else %}alert-soft-warning{% endif %} py-2 px-3 mb-1">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi {% if alert.level == 'danger' %}bi-exclamation-octagon{% else %}bi-exclamation-triangle{% endif %}"></i>
+                            <div>
+                                <div class="fw-bold small">{{ alert.title }}</div>
+                                <div class="small">{{ alert.message }}</div>
+                            </div>
                         </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="alert alert-success border-success py-2 px-3 mb-2">
-                        <strong>Todo en orden:</strong>
-                        No se han detectado alertas críticas en tu operación reciente.
                     </div>
-                {% endif %}
+                </div>
+                {% endfor %}
             </div>
-
-            <!-- TARJETAS MÉTRICAS -->
-            <div class="row g-3">
-                <div class="col-6 col-md-3">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Ganancia total (periodo)</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ total_ganancia|format_num }}
-                        </h4>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Monto vendido (periodo)</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ total_monto_period|format_num }}
-                        </h4>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Ticket promedio</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ avg_ticket|format_num }}
-                        </h4>
-                        <small class="text-secondary-custom">
-                            {{ total_ventas_period or 0 }} ventas en el periodo
-                        </small>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Utilidad diaria promedio</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ avg_daily_profit|format_num }}
-                        </h4>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TARJETAS DE PAGOS PENDIENTES -->
-            <div class="row g-3 mt-3">
-                <div class="col-6 col-md-3">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Pagos vencidos (₡)</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ overdue_total|format_num }}
-                        </h4>
-                        <small class="text-secondary-custom">
-                            {{ overdue_count }} ventas vencidas
-                        </small>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Pagos próximos 7 días (₡)</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ upcoming_total|format_num }}
-                        </h4>
-                        <small class="text-secondary-custom">
-                            {{ upcoming_count }} ventas próximas
-                        </small>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3 d-none d-md-block">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Semana con mayor ganancia</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ max_weekly_profit|format_num }}
-                        </h4>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3 d-none d-md-block">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Semana con menor ganancia</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ min_weekly_profit|format_num }}
-                        </h4>
-                    </div>
-                </div>
-            </div>
-
+            {% endif %}
         </div>
     </div>
 </div>
 
-<!-- GRÁFICOS -->
-<div class="row g-4">
-    <div class="col-12 col-lg-4">
-        <div class="card p-3 h-100">
-            <h5 class="text-accent text-center mb-2">Top productos por ganancia</h5>
-            <p class="text-secondary-custom text-center mb-2">
-                Productos que más aportan a tu utilidad en el rango seleccionado.
-            </p>
-            <div class="d-flex justify-content-center">
-                <canvas id="topProductsChart" style="max-height:260px;"></canvas>
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card-matrix-soft p-3 h-100">
+            <div class="small-label mb-1">Ganancia neta</div>
+            <h4 class="fw-narrow mb-1 text-accent">₡{{ total_ganancia|format_num }}</h4>
+            <p class="text-secondary-custom mb-0 small">En el período seleccionado</p>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card-matrix-soft p-3 h-100">
+            <div class="small-label mb-1">Ventas totales</div>
+            <h4 class="fw-narrow mb-1">₡{{ total_monto_period|format_num }}</h4>
+            <p class="text-secondary-custom mb-0 small">Facturado en el período</p>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card-matrix-soft p-3 h-100">
+            <div class="small-label mb-1">Ticket promedio</div>
+            <h4 class="fw-narrow mb-1">₡{{ avg_ticket|format_num }}</h4>
+            <p class="text-secondary-custom mb-0 small">Por venta</p>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card-matrix-soft p-3 h-100">
+            <div class="small-label mb-1">Ganancia diaria</div>
+            <h4 class="fw-narrow mb-1">₡{{ avg_daily_profit|format_num }}</h4>
+            <p class="text-secondary-custom mb-0 small">Promedio diario</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card-matrix p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    <div class="small-label mb-1">Evolución semanal</div>
+                    <h6 class="mb-0">Ganancia por semana</h6>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-matrix mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Semana</th>
+                            <th class="text-end">Ganancia</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for w, v in week_labels|zip(week_values) %}
+                        <tr>
+                            <td>{{ w }}</td>
+                            <td class="text-end">₡{{ v|format_num }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not week_labels %}
+                        <tr>
+                            <td colspan="2" class="text-center text-secondary-custom small">
+                                No hay datos en el rango seleccionado.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="divider-soft my-2"></div>
+            <div class="row text-secondary-custom small">
+                <div class="col-6 col-md-3">
+                    <div class="small-label mb-1">Semana con mayor ganancia</div>
+                    <div class="fw-narrow">
+                        ₡{{ max_weekly_profit|format_num }}
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="small-label mb-1">Semana con menor ganancia</div>
+                    <div class="fw-narrow">
+                        ₡{{ min_weekly_profit|format_num }}
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 mt-2 mt-md-0 text-md-end">
+                    <span class="badge-soft bg-accent-soft small">
+                        <i class="bi bi-activity me-1"></i>
+                        Total semanas: {{ week_labels|length }}
+                    </span>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="col-12 col-lg-4">
-        <div class="card p-3 h-100">
-            <h5 class="text-accent text-center mb-2">Ganancia por semana</h5>
-            <p class="text-secondary-custom text-center mb-2">
-                Evolución de la utilidad semana a semana (ISO week).
-            </p>
-            <div class="d-flex justify-content-center">
-                <canvas id="weeklyProfitChart" style="max-height:260px;"></canvas>
+    <div class="col-12 col-lg-6">
+        <div class="card-matrix p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    <div class="small-label mb-1">Top productos</div>
+                    <h6 class="mb-0">Productos más rentables</h6>
+                </div>
             </div>
-        </div>
-    </div>
-
-    <div class="col-12 col-lg-4">
-        <div class="card p-3 h-100">
-            <h5 class="text-accent text-center mb-2">Ganancia por usuario</h5>
-            <p class="text-secondary-custom text-center mb-2">
-                Distribución de la utilidad por usuario del sistema.
-            </p>
-            <div class="d-flex justify-content-center">
-                <canvas id="userProfitChart" style="max-height:260px;"></canvas>
+            <div class="table-responsive">
+                <table class="table table-matrix mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th class="text-end">Ganancia</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for label, val in top_labels|zip(top_values) %}
+                        <tr>
+                            <td>{{ label }}</td>
+                            <td class="text-end">₡{{ val|format_num }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not top_labels %}
+                        <tr>
+                            <td colspan="2" class="text-center text-secondary-custom small">
+                                No hay productos registrados en el rango actual.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 </div>
 
-{% endblock %}
+<div class="row g-3">
+    <div class="col-12 col-lg-6">
+        <div class="card-matrix-soft p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    <div class="small-label mb-1">Pagos vencidos</div>
+                    <h6 class="mb-0">Resumen de cobros pendientes</h6>
+                </div>
+            </div>
+            <p class="text-secondary-custom small mb-1">
+                Total vencido: <strong>₡{{ overdue_total|format_num }}</strong>
+            </p>
+            <p class="text-secondary-custom small mb-0">
+                Ventas afectadas: <strong>{{ overdue_count }}</strong>
+            </p>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card-matrix-soft p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    <div class="small-label mb-1">Pagos próximos</div>
+                    <h6 class="mb-0">Cobros por venir</h6>
+                </div>
+            </div>
+            <p class="text-secondary-custom small mb-1">
+                Total próximo: <strong>₡{{ upcoming_total|format_num }}</strong>
+            </p>
+            <p class="text-secondary-custom small mb-0">
+                Ventas afectadas: <strong>{{ upcoming_count }}</strong>
+            </p>
+        </div>
+    </div>
+</div>
 
-{% block extra_scripts %}
-{{ super() }}
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-    if (typeof Chart === "undefined") {
-        console.warn("Chart.js no está cargado. Verifica el script en base.html");
-        return;
-    }
-
-    const topLabels = {{ top_labels | default([]) | tojson }};
-    const topData   = {{ top_values | default([]) | tojson }};
-    const weekLabels = {{ week_labels | default([]) | tojson }};
-    const weekData   = {{ week_values | default([]) | tojson }};
-    const userLabels = {{ user_labels | default([]) | tojson }};
-    const userData   = {{ user_values | default([]) | tojson }};
-
-    const topCtx = document.getElementById('topProductsChart');
-    if (topCtx && topLabels.length > 0) {
-        new Chart(topCtx, {
-            type: 'doughnut',
-            data: {
-                labels: topLabels,
-                datasets: [{ data: topData }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: '#e8f5e9' } }
-                }
-            }
-        });
-    }
-
-    const weekCtx = document.getElementById('weeklyProfitChart');
-    if (weekCtx && weekLabels.length > 0) {
-        new Chart(weekCtx, {
-            type: 'bar',
-            data: {
-                labels: weekLabels,
-                datasets: [{
-                    label: 'Ganancia por semana',
-                    data: weekData
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: {
-                        ticks: { color: '#e8f5e9' },
-                        grid: { display: false }
-                    },
-                    y: {
-                        ticks: { color: '#e8f5e9' },
-                        grid: { color: 'rgba(232,245,233,0.15)' }
-                    }
-                },
-                plugins: {
-                    legend: { labels: { color: '#e8f5e9' } }
-                }
-            }
-        });
-    }
-
-    const userCtx = document.getElementById('userProfitChart');
-    if (userCtx && userLabels.length > 0) {
-        new Chart(userCtx, {
-            type: 'doughnut',
-            data: {
-                labels: userLabels,
-                datasets: [{ data: userData }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: '#e8f5e9' } }
-                }
-            }
-        });
-    }
-});
-</script>
 {% endblock %}
