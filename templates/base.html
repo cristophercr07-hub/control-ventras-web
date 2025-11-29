@@ -1,4 +1,4 @@
-<!DOCTYPE html><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -27,7 +27,6 @@
             --border-soft: #1b3b24;
             --text-main: #e8f5e9;
             --text-secondary: #9ccc9c;
-            --text-header: #062b12;
             --accent: #00ff41;
             --accent-soft: rgba(0, 255, 65, 0.20);
         }
@@ -75,38 +74,28 @@
             color: var(--text-secondary) !important;
             font-size: 0.9rem;
             position: relative;
-            transition: color 0.2s ease, background-color 0.2s ease;
-            border-radius: 999px;
-            padding-inline: 0.9rem;
-        }
-
-        .nav-link::after {
-            content: "";
-            position: absolute;
-            left: 10%;
-            right: 10%;
-            bottom: 0;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--accent), transparent);
-            opacity: 0;
-            transform: scaleX(0.7);
-            transition: opacity 0.2s ease, transform 0.2s ease;
+            transition: color 0.2s ease, transform 0.2s ease;
         }
 
         .nav-link:hover {
             color: var(--accent) !important;
-            background-color: rgba(0, 255, 65, 0.06);
+            transform: translateY(-1px);
         }
 
         .nav-link.active {
             color: #000000 !important;
-            background: linear-gradient(135deg, #00ff41, #00c932);
-            box-shadow: 0 0 12px rgba(0, 255, 65, 0.45);
         }
 
         .nav-link.active::after {
-            opacity: 1;
-            transform: scaleX(1);
+            content: "";
+            position: absolute;
+            left: 10%;
+            right: 10%;
+            bottom: -4px;
+            height: 2px;
+            background: linear-gradient(90deg, #00ff41, #66ff88);
+            border-radius: 999px;
+            box-shadow: 0 0 8px rgba(0, 255, 65, 0.7);
         }
 
         /* CARDS / CONTENEDORES */
@@ -178,6 +167,7 @@
             color: var(--accent);
         }
 
+        /* Tablas oscuras pero legibles */
         .table-dark-custom {
             color: var(--text-main);
             background-color: #020502;
@@ -186,8 +176,8 @@
 
         .table-dark-custom thead th {
             border-bottom: 1px solid var(--border-soft);
-            color: var(--text-header);
-            background-color: #b8f5c8;
+            color: #0c220f; /* verde muy oscuro casi negro */
+            background-color: #9bf6b0; /* encabezado más claro para contraste */
             font-size: 0.85rem;
             text-align: center;
         }
@@ -228,6 +218,18 @@
         .matrix-border {
             border: 1px solid rgba(0, 255, 65, 0.35);
             box-shadow: 0 0 10px rgba(0, 255, 65, 0.25);
+        }
+
+        /* Estilo para el icono de calendario en inputs de fecha */
+        .input-group-text.calendar-icon {
+            background: linear-gradient(135deg, #66ff88, #b2ffcc);
+            border-color: var(--accent);
+            color: #000000;
+            cursor: pointer;
+        }
+
+        .input-group-text.calendar-icon i {
+            color: #000000;
         }
 
         @media (max-width: 576px) {
@@ -319,7 +321,7 @@
         </main>
     </div>
 
-    <!-- JS base -->
+    {% block extra_scripts %}
     <script
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
@@ -374,30 +376,42 @@
         })();
     </script>
 
-    <!-- Función global de doble confirmación -->
-    <script>
-        function doubleConfirm(msg1, msg2) {
-            if (!confirm(msg1)) return false;
-            return confirm(msg2);
-        }
-    </script>
-
     <!-- Navegación tipo SPA -->
     <script>
         (function() {
             const content = document.getElementById('app-content');
 
-            function setActiveLink(pathname) {
-                const links = document.querySelectorAll('a.spa-link');
-                links.forEach(link => {
-                    const href = link.getAttribute('href');
-                    if (!href) return;
-                    const linkPath = new URL(href, window.location.origin).pathname;
-                    if (linkPath === pathname) {
-                        link.classList.add('active');
+            function setActiveNavLink(url) {
+                try {
+                    const currentPath = new URL(url, window.location.origin).pathname;
+                    const links = document.querySelectorAll('a.spa-link.nav-link');
+                    links.forEach(link => {
+                        const linkPath = new URL(link.href, window.location.origin).pathname;
+                        if (linkPath === currentPath) {
+                            link.classList.add('active');
+                        } else {
+                            link.classList.remove('active');
+                        }
+                    });
+                } catch (e) {
+                    // En caso de error silencioso, no rompemos nada
+                }
+            }
+
+            function executeScriptsFrom(node) {
+                const scripts = node.querySelectorAll('script');
+                scripts.forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    if (oldScript.src) {
+                        newScript.src = oldScript.src;
                     } else {
-                        link.classList.remove('active');
+                        newScript.textContent = oldScript.textContent;
                     }
+                    if (oldScript.type) {
+                        newScript.type = oldScript.type;
+                    }
+                    document.body.appendChild(newScript);
+                    document.body.removeChild(newScript);
                 });
             }
 
@@ -419,16 +433,11 @@
                     if (newContent) {
                         content.innerHTML = newContent.innerHTML;
                         if (newTitle) document.title = newTitle.textContent;
-
-                        const newPath = new URL(url, window.location.origin).pathname;
-                        setActiveLink(newPath);
-
+                        executeScriptsFrom(content);
                         if (pushState) {
                             history.pushState({ url: url }, '', url);
                         }
-
-                        // Avisar a otros scripts (ventas, dashboard, etc.)
-                        window.dispatchEvent(new Event('spa:navigation-complete'));
+                        setActiveNavLink(url);
                     } else {
                         window.location.href = url;
                     }
@@ -454,56 +463,10 @@
                 loadPage(url, false);
             });
 
-            window.addEventListener('DOMContentLoaded', function() {
-                setActiveLink(window.location.pathname);
-            });
+            // Inicializar activo al cargar
+            setActiveNavLink(window.location.pathname);
         })();
     </script>
-
-    <!-- Inicialización específica de la pestaña Ventas (rellenar costo/precio) -->
-    <script>
-        function initVentasPage() {
-            const mappingScript = document.getElementById('product-mapping-json');
-            if (!mappingScript) return; // No estamos en la pestaña Ventas
-
-            let mapping = {};
-            try {
-                mapping = JSON.parse(mappingScript.textContent || '{}');
-            } catch (e) {
-                console.error('Error al leer product_mapping JSON', e);
-                return;
-            }
-
-            const select = document.getElementById("product_select");
-            const productInput = document.getElementById("product_input");
-            const costInput = document.getElementById("cost_per_unit");
-            const priceInput = document.getElementById("price_per_unit");
-
-            if (!select) return;
-
-            // Evitar múltiples listeners: clonar el select
-            const newSelect = select.cloneNode(true);
-            select.parentNode.replaceChild(newSelect, select);
-
-            newSelect.addEventListener("change", function() {
-                const name = this.value;
-                if (name && mapping[name]) {
-                    if (productInput) productInput.value = name;
-                    if (costInput)  costInput.value  = mapping[name].cost;
-                    if (priceInput) priceInput.value = mapping[name].price;
-                }
-            });
-        }
-
-        window.addEventListener('DOMContentLoaded', function () {
-            initVentasPage();
-        });
-
-        window.addEventListener('spa:navigation-complete', function () {
-            initVentasPage();
-        });
-    </script>
-
-    {% block extra_scripts %}{% endblock %}
+    {% endblock %}
 </body>
 </html>
