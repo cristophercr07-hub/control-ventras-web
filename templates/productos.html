@@ -3,7 +3,6 @@
 
 {% block content %}
 
-<!-- MENSAJES GENERALES -->
 {% if error %}
     <div class="alert alert-danger py-2 mb-3">{{ error }}</div>
 {% endif %}
@@ -17,9 +16,9 @@
         <div class="card p-4 mb-4">
             <h2 class="mb-3 text-accent">Calculadora de precios</h2>
             <p class="text-secondary-custom text-center mb-3">
-                Ingresa el <b>costo</b>, el <b>margen deseado (%)</b>
-                y la <b>cantidad</b>. La calculadora sugerirá un precio y mostrará la utilidad.
-                Puedes guardar el resultado en el <b>catálogo</b> para usarlo luego en la pestaña de Ventas.
+                Ingresa el <b>costo</b>, el <b>margen deseado</b> (libre) y la cantidad.
+                La calculadora sugerirá un precio y mostrará la utilidad.
+                Puedes guardar el resultado en el catálogo para usarlo luego en la pestaña de Ventas.
             </p>
 
             <form method="post" action="{{ url_for('productos') }}">
@@ -46,7 +45,7 @@
                         >
                     </div>
                     <div class="col-md-2 col-6">
-                        <label class="form-label text-secondary-custom">Margen deseado (%)</label>
+                        <label class="form-label text-secondary-custom">Margen (%)</label>
                         <input
                             type="number"
                             step="0.01"
@@ -93,25 +92,25 @@
                     <div class="col-md-3 col-6 mb-2">
                         <p class="text-secondary-custom">
                             Precio sugerido (₡)<br>
-                            <span class="text-accent">{{ "%.2f"|format(price_result) }}</span>
+                            <span class="text-accent">{{ price_result|format_num }}</span>
                         </p>
                     </div>
                     <div class="col-md-3 col-6 mb-2">
                         <p class="text-secondary-custom">
                             Utilidad por unidad (₡)<br>
-                            <span class="text-accent">{{ "%.2f"|format(profit_unit or 0) }}</span>
+                            <span class="text-accent">{{ profit_unit|format_num }}</span>
                         </p>
                     </div>
                     <div class="col-md-3 col-6 mb-2">
                         <p class="text-secondary-custom">
                             Utilidad total (₡)<br>
-                            <span class="text-accent">{{ "%.2f"|format(profit_total or 0) }}</span>
+                            <span class="text-accent">{{ profit_total|format_num }}</span>
                         </p>
                     </div>
                     <div class="col-md-3 col-6 mb-2">
                         <p class="text-secondary-custom">
                             Margen efectivo (%)<br>
-                            <span class="text-accent">{{ "%.2f"|format(margin_used or 0) }}</span>
+                            <span class="text-accent">{{ margin_used|format_num }}</span>
                         </p>
                     </div>
                 </div>
@@ -124,12 +123,20 @@
 <div class="row">
     <div class="col-12">
         <div class="card p-4">
-            <h2 class="mb-3 text-accent">Catálogo de productos</h2>
-            <p class="text-secondary-custom text-center mb-3">
-                Aquí gestionas los productos que se usan como plantilla en las ventas:
-                nombre, costo, precio sugerido y margen estimado. Eliminar un producto no
-                borra las ventas históricas, solo quita el producto del catálogo.
-            </p>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h2 class="mb-1 text-accent">Catálogo de productos</h2>
+                    <p class="text-secondary-custom mb-0">
+                        Estos productos se usan como plantilla en las ventas:
+                        nombre, costo, precio sugerido y margen estimado.
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('productos_export') }}" class="btn btn-outline-light btn-sm">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Exportar
+                    </a>
+                </div>
+            </div>
 
             <!-- Formulario directo para crear/editar producto -->
             <form method="post" action="{{ url_for('productos') }}" class="mb-4">
@@ -160,7 +167,7 @@
                 <div class="table-responsive d-none d-md-block">
                     <table class="table table-dark-custom table-striped table-sm align-middle">
                         <thead>
-                            <tr class="text-center">
+                            <tr>
                                 <th>Nombre</th>
                                 <th>Costo (₡)</th>
                                 <th>Precio (₡)</th>
@@ -171,20 +178,17 @@
                         <tbody>
                             {% for p in products %}
                                 <tr>
-                                    <td class="text-center text-dark fw-bold bg-light">{{ p.name }}</td>
-                                    <td class="text-end text-dark bg-light">{{ "%.2f"|format(p.cost) }}</td>
-                                    <td class="text-end text-dark bg-light">{{ "%.2f"|format(p.price) }}</td>
-                                    <td class="text-end text-dark bg-light">{{ "%.2f"|format(p.margin_percent) }}</td>
-                                    <td class="text-center bg-light">
+                                    <td>{{ p.name }}</td>
+                                    <td>₡{{ p.cost|format_num }}</td>
+                                    <td>₡{{ p.price|format_num }}</td>
+                                    <td>{{ p.margin_percent|format_num }}</td>
+                                    <td>
                                         <form method="post"
                                               action="{{ url_for('delete_product', product_id=p.id) }}"
                                               class="d-inline">
                                             <button type="submit"
                                                     class="btn btn-sm btn-outline-danger"
-                                                    onclick="return doubleConfirm(
-                                                        '¿Eliminar este producto del catálogo?',
-                                                        'Las ventas existentes no se borran, pero no podrás seleccionarlo más. ¿Confirmas?'
-                                                    );">
+                                                    onclick="return doubleConfirm('¿Eliminar este producto del catálogo?', 'Las ventas existentes no se borran, solo se quita del catálogo. ¿Confirmas?');">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
@@ -195,18 +199,18 @@
                     </table>
                 </div>
 
-                <!-- Versión móvil tipo tarjeta -->
+                <!-- Versión móvil -->
                 <div class="d-block d-md-none">
                     {% for p in products %}
-                        <div class="border rounded p-2 mb-2 bg-light text-dark">
+                        <div class="border rounded p-2 mb-2">
                             <div><strong>{{ p.name }}</strong></div>
-                            <div class="text-muted">
-                                Costo: <span class="fw-bold">{{ "%.2f"|format(p.cost) }} ₡</span> |
-                                Precio: <span class="fw-bold">{{ "%.2f"|format(p.price) }} ₡</span>
+                            <div class="text-secondary-custom">
+                                Costo: <span class="text-accent">{{ p.cost|format_num }} ₡</span> |
+                                Precio: <span class="text-accent">{{ p.price|format_num }} ₡</span>
                             </div>
-                            <div class="text-muted">
+                            <div class="text-secondary-custom">
                                 Margen estimado:
-                                <span class="fw-bold">{{ "%.2f"|format(p.margin_percent) }} %</span>
+                                <span class="text-accent">{{ p.margin_percent|format_num }} %</span>
                             </div>
                             <div class="mt-1 text-end">
                                 <form method="post"
@@ -214,10 +218,7 @@
                                       class="d-inline">
                                     <button type="submit"
                                             class="btn btn-sm btn-outline-danger"
-                                            onclick="return doubleConfirm(
-                                                '¿Eliminar este producto?',
-                                                'No se borran las ventas, solo el catálogo. ¿Confirmas?'
-                                            );">
+                                            onclick="return doubleConfirm('¿Eliminar este producto?', 'No se borran las ventas, solo el catálogo. ¿Confirmas?');">
                                         <i class="bi bi-trash"></i> Eliminar
                                     </button>
                                 </form>
