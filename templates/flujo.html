@@ -1,263 +1,231 @@
 {% extends "base.html" %}
-{% block title %}Control de Flujo - Control de Ventas{% endblock %}
+{% block title %}Flujo - Control de Ventas{% endblock %}
 
 {% block content %}
-
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card p-4">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
+<div class="row g-3">
+    <div class="col-12 col-lg-7">
+        <div class="card-matrix p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
-                    <h2 class="mb-1 text-accent">Control de Flujo</h2>
-                    <p class="text-secondary-custom mb-0">
-                        Registra gastos y reinversiones, y controla tu flujo de caja y objetivo de ahorro.
-                    </p>
+                    <div class="small-label mb-1">Control diario</div>
+                    <h5 class="fw-narrow mb-0">Flujo de capital</h5>
                 </div>
+                <form method="post">
+                    <input type="date" name="date" class="form-control form-control-sm input-chip"
+                           value="{{ record.date.isoformat() if record.date else '' }}">
+                </form>
             </div>
 
-            {% if error %}
-                <div class="alert alert-danger py-2 px-3 fw-narrow">{{ error }}</div>
-            {% endif %}
-            {% if success %}
-                <div class="alert alert-success py-2 px-3 fw-narrow">{{ success }}</div>
-            {% endif %}
+            <form method="post">
+                <input type="hidden" name="date" value="{{ record.date.isoformat() if record.date else '' }}">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Custodia inicial</label>
+                        <input type="number" step="0.01" name="initial_custody"
+                               class="form-control input-chip"
+                               value="{{ record.initial_custody }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Capital inicial</label>
+                        <input type="number" step="0.01" name="initial_capital"
+                               class="form-control input-chip"
+                               value="{{ record.initial_capital }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Cuentas externas inicial</label>
+                        <input type="number" step="0.01" name="initial_external_accounts"
+                               class="form-control input-chip"
+                               value="{{ record.initial_external_accounts }}">
+                    </div>
 
-            <div class="row g-3">
-                <!-- FORM MOVIMIENTO -->
-                <div class="col-12 col-lg-6">
-                    <div class="field-box matrix-border h-100">
-                        <div class="field-box-title">Registrar movimiento</div>
-                        <form method="post" class="fw-narrow">
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <label class="small-label mb-1">Fecha</label>
-                                    <input type="date" name="date" class="form-control form-control-sm"
-                                           value="{{ request.form.date or '' }}">
-                                </div>
-                                <div class="col-6">
-                                    <label class="small-label mb-1">Tipo</label>
-                                    <select name="category" class="form-select form-select-sm">
-                                        <option value="Gasto">Gasto</option>
-                                        <option value="Reinversión">Reinversión</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="row g-2 mb-2">
-                                <div class="col-12">
-                                    <label class="small-label mb-1">Descripción</label>
-                                    <input type="text" name="description" class="form-control form-control-sm"
-                                           placeholder="Ej: Compra de insumos, publicidad..."
-                                           value="{{ request.form.description or '' }}">
-                                </div>
-                            </div>
-                            <div class="row g-2 mb-3">
-                                <div class="col-12">
-                                    <label class="small-label mb-1">Monto (₡)</label>
-                                    <input type="number" step="0.01" min="0" name="amount"
-                                           class="form-control form-control-sm text-end"
-                                           value="{{ request.form.amount or '' }}">
-                                </div>
-                            </div>
-                            <div class="d-flex justify-content-end">
-                                <button type="submit" class="btn btn-primary btn-sm">
-                                    <i class="bi bi-plus-circle me-1"></i> Guardar movimiento
-                                </button>
-                            </div>
-                        </form>
+                    <div class="col-12 divider-soft my-2"></div>
+
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Ganancia bruta</label>
+                        <input type="number" step="0.01" name="gross_profit"
+                               class="form-control input-chip"
+                               value="{{ record.gross_profit }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Impuestos pagados</label>
+                        <input type="number" step="0.01" name="taxes_paid"
+                               class="form-control input-chip"
+                               value="{{ record.taxes_paid }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Gastos pagados</label>
+                        <input type="number" step="0.01" name="expenses_paid"
+                               class="form-control input-chip"
+                               value="{{ record.expenses_paid }}">
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Reinversión</label>
+                        <input type="number" step="0.01" name="reinvestment"
+                               class="form-control input-chip"
+                               value="{{ record.reinvestment }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Custodia usada FXD</label>
+                        <input type="number" step="0.01" name="custody_used_for_fxd"
+                               class="form-control input-chip"
+                               value="{{ record.custody_used_for_fxd }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Capital para FXD</label>
+                        <input type="number" step="0.01" name="capital_for_fxd"
+                               class="form-control input-chip"
+                               value="{{ record.capital_for_fxd }}">
+                    </div>
+
+                    <div class="col-12 divider-soft my-2"></div>
+
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Custodia final</label>
+                        <input type="number" step="0.01" name="final_custody"
+                               class="form-control input-chip"
+                               value="{{ record.final_custody }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Capital final</label>
+                        <input type="number" step="0.01" name="final_capital"
+                               class="form-control input-chip"
+                               value="{{ record.final_capital }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Cuentas externas final</label>
+                        <input type="number" step="0.01" name="final_external_accounts"
+                               class="form-control input-chip"
+                               value="{{ record.final_external_accounts }}">
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Capital actualizado</label>
+                        <input type="number" step="0.01" name="updated_capital"
+                               class="form-control input-chip"
+                               value="{{ record.updated_capital }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Custodia actualizada</label>
+                        <input type="number" step="0.01" name="updated_custody"
+                               class="form-control input-chip"
+                               value="{{ record.updated_custody }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small-label mb-1">Cuentas externas actualizadas</label>
+                        <input type="number" step="0.01" name="updated_external_accounts"
+                               class="form-control input-chip"
+                               value="{{ record.updated_external_accounts }}">
+                    </div>
+
+                    <div class="col-12">
+                        <label class="small-label mb-1">Notas</label>
+                        <textarea name="notes" rows="2" class="form-control">{{ record.notes or '' }}</textarea>
                     </div>
                 </div>
-
-                <!-- FILTROS + RESUMEN -->
-                <div class="col-12 col-lg-6">
-                    <div class="field-box h-100">
-                        <div class="field-box-title">Filtros y resumen financiero</div>
-                        <form method="get" class="fw-narrow mb-3">
-                            <div class="row g-2 mb-2">
-                                <div class="col-4">
-                                    <label class="small-label mb-1">Desde</label>
-                                    <input type="date" name="date_from"
-                                           class="form-control form-control-sm"
-                                           value="{{ date_from or '' }}">
-                                </div>
-                                <div class="col-4">
-                                    <label class="small-label mb-1">Hasta</label>
-                                    <input type="date" name="date_to"
-                                           class="form-control form-control-sm"
-                                           value="{{ date_to or '' }}">
-                                </div>
-                                <div class="col-4">
-                                    <label class="small-label mb-1">Tipo</label>
-                                    <select name="category_filter" class="form-select form-select-sm">
-                                        <option value="">Todos</option>
-                                        <option value="Gasto" {% if category_filter == 'Gasto' %}selected{% endif %}>Gasto</option>
-                                        <option value="Reinversión" {% if category_filter == 'Reinversión' %}selected{% endif %}>Reinversión</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="row g-2 mb-2">
-                                <div class="col-12 d-flex justify-content-end gap-2">
-                                    <button type="submit" class="btn btn-primary btn-sm">
-                                        <i class="bi bi-funnel me-1"></i> Filtrar
-                                    </button>
-                                    <a href="{{ url_for('flujo') }}" class="btn btn-outline-light btn-sm">
-                                        Limpiar
-                                    </a>
-                                    <a href="{{ url_for('flujo_export',
-                                                         date_from=date_from,
-                                                         date_to=date_to,
-                                                         category_filter=category_filter) }}"
-                                       class="btn btn-outline-light btn-sm">
-                                        <i class="bi bi-file-earmark-excel me-1"></i> Exportar
-                                    </a>
-                                </div>
-                            </div>
-                        </form>
-
-                        <!-- RESUMEN FINANCIERO -->
-                        <div class="row g-2 fw-narrow mb-3">
-                            <div class="col-6">
-                                <div class="card bg-dark border-secondary h-100">
-                                    <div class="card-body py-2 px-3">
-                                        <div class="small-label mb-1">Ingresos (ventas)</div>
-                                        <div class="h5 mb-0 text-accent">
-                                            ₡{{ total_ingresos|format_num }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="card bg-dark border-secondary h-100">
-                                    <div class="card-body py-2 px-3">
-                                        <div class="small-label mb-1">Ganancia bruta</div>
-                                        <div class="h5 mb-0 text-accent">
-                                            ₡{{ total_ganancia|format_num }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="card bg-dark border-secondary h-100">
-                                    <div class="card-body py-2 px-3">
-                                        <div class="small-label mb-1">Gastos</div>
-                                        <div class="h5 mb-0 text-accent">
-                                            ₡{{ total_gastos|format_num }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="card bg-dark border-secondary h-100">
-                                    <div class="card-body py-2 px-3">
-                                        <div class="small-label mb-1">Reinversión</div>
-                                        <div class="h5 mb-0 text-accent">
-                                            ₡{{ total_reinv|format_num }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="card bg-dark border-secondary h-100">
-                                    <div class="card-body py-2 px-3">
-                                        <div class="small-label mb-1">Egresos totales</div>
-                                        <div class="h5 mb-0 text-accent">
-                                            ₡{{ total_egresos|format_num }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="card bg-dark border-secondary h-100">
-                                    <div class="card-body py-2 px-3">
-                                        <div class="small-label mb-1">Flujo neto</div>
-                                        <div class="h5 mb-0 text-accent">
-                                            ₡{{ neto|format_num }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- OBJETIVO DE AHORRO -->
-                        <div class="field-box mt-2">
-                            <div class="small-label mb-1">Objetivo de ahorro mensual (10% de la ganancia)</div>
-                            <p class="mb-1 text-secondary-custom fw-narrow">
-                                Objetivo: <span class="text-accent fw-bold">₡{{ ahorro_objetivo|format_num }}</span>
-                            </p>
-                            <p class="mb-1 text-secondary-custom fw-narrow">
-                                Ahorro estimado: <span class="text-accent fw-bold">₡{{ ahorro_real|format_num }}</span>
-                            </p>
-                            <p class="mb-0 text-secondary-custom fw-narrow">
-                                Falta para la meta: <span class="text-accent fw-bold">₡{{ ahorro_faltante|format_num }}</span>
-                            </p>
-                            {% if meta_cumplida %}
-                                <div class="alert alert-success border-success py-2 px-3 mt-2 fw-narrow mb-0">
-                                    Meta de ahorro alcanzada o superada en este rango.
-                                </div>
-                            {% else %}
-                                <div class="alert alert-warning border-warning text-dark py-2 px-3 mt-2 fw-narrow mb-0">
-                                    Aún no alcanzas la meta de ahorro. Considera reducir gastos o aumentar margen.
-                                </div>
-                            {% endif %}
-                        </div>
-
-                    </div>
+                <div class="mt-3 text-end">
+                    <button class="btn btn-accent btn-sm">
+                        Guardar flujo
+                    </button>
                 </div>
-            </div>
-
+            </form>
         </div>
     </div>
-</div>
 
-<!-- TABLA MOVIMIENTOS -->
-<div class="row">
-    <div class="col-12">
-        <div class="card p-3">
-            <h5 class="text-accent mb-3 fw-narrow">Movimientos de flujo</h5>
+    <div class="col-12 col-lg-5">
+        <div class="card-matrix-soft p-3 mb-3">
+            <div class="small-label mb-1">Gastos recientes</div>
+            <h6 class="fw-narrow mb-3">Últimos movimientos</h6>
+
             <div class="table-responsive">
-                <table class="table table-dark-custom table-sm mb-0">
+                <table class="table table-matrix mb-0 align-middle">
                     <thead>
                         <tr>
                             <th>Fecha</th>
                             <th>Descripción</th>
-                            <th>Tipo</th>
-                            <th>Monto (₡)</th>
-                            <th style="width: 60px;">Acciones</th>
+                            <th class="text-end">Monto</th>
+                            <th class="text-end">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% if expenses and expenses|length > 0 %}
-                            {% for e in expenses %}
-                            <tr>
-                                <td class="text-center">{{ e.date.isoformat() if e.date else '' }}</td>
-                                <td class="text-center">{{ e.description }}</td>
-                                <td class="text-center">{{ e.category }}</td>
-                                <td class="text-end">₡{{ e.amount|format_num }}</td>
-                                <td class="text-center">
-                                    <form method="post"
-                                          action="{{ url_for('delete_expense', expense_id=e.id) }}"
-                                          onsubmit="return doubleConfirm(
-                                              '¿Seguro que deseas eliminar este movimiento?',
-                                              'Esta acción no se puede deshacer. ¿Confirmas que deseas continuar?'
-                                          );">
-                                        <button type="submit" class="btn btn-outline-light btn-sm py-0 px-2">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        {% else %}
-                            <tr>
-                                <td colspan="5" class="text-center text-secondary-custom">
-                                    No hay movimientos registrados con los filtros actuales.
-                                </td>
-                            </tr>
+                        {% for e in expenses %}
+                        <tr>
+                            <td>{{ e.date.isoformat() if e.date else '' }}</td>
+                            <td>
+                                <div class="small">{{ e.description }}</div>
+                                <div class="text-secondary-custom small">{{ e.category }}</div>
+                            </td>
+                            <td class="text-end">₡{{ e.amount|format_num }}</td>
+                            <td class="text-end">
+                                <form method="post" action="{{ url_for('delete_expense', expense_id=e.id) }}"
+                                      onsubmit="return confirm('¿Eliminar este gasto?');">
+                                    <button class="btn btn-outline-danger btn-sm">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not expenses %}
+                        <tr>
+                            <td colspan="4" class="text-center text-secondary-custom small">
+                                No hay gastos registrados recientemente.
+                            </td>
+                        </tr>
                         {% endif %}
                     </tbody>
                 </table>
             </div>
+
+            <div class="divider-soft my-2"></div>
+
+            <p class="text-secondary-custom small mb-1">
+                Total gastos: <strong>₡{{ total_expenses|format_num }}</strong>
+            </p>
+            <p class="text-secondary-custom small mb-1">
+                Total reinversión: <strong>₡{{ total_reinvestments|format_num }}</strong>
+            </p>
+            <p class="text-secondary-custom small mb-0">
+                Otros: <strong>₡{{ total_other|format_num }}</strong>
+            </p>
+        </div>
+
+        <div class="card-matrix-soft p-3">
+            <div class="small-label mb-1">Nuevo gasto</div>
+            <h6 class="fw-narrow mb-3">Registrar gasto / reinversión</h6>
+            <form method="post" action="{{ url_for('add_expense') }}">
+                <div class="mb-2">
+                    <label class="small-label mb-1">Fecha</label>
+                    <input type="date" name="date" class="form-control input-chip"
+                           value="{{ record.date.isoformat() if record.date else '' }}">
+                </div>
+                <div class="mb-2">
+                    <label class="small-label mb-1">Descripción</label>
+                    <input type="text" name="description" class="form-control input-chip">
+                </div>
+                <div class="mb-2">
+                    <label class="small-label mb-1">Categoría</label>
+                    <select name="category" class="form-select input-chip">
+                        <option value="Gasto">Gasto</option>
+                        <option value="Reinversión">Reinversión</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="small-label mb-1">Monto</label>
+                    <input type="number" step="0.01" name="amount" class="form-control input-chip">
+                </div>
+                <div class="mb-3">
+                    <label class="small-label mb-1">Notas</label>
+                    <textarea name="notes" rows="2" class="form-control"></textarea>
+                </div>
+                <div class="text-end">
+                    <button class="btn btn-accent btn-sm">
+                        Guardar gasto
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
-
 {% endblock %}
