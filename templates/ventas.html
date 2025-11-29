@@ -103,6 +103,7 @@
                                 </div>
                             </div>
 
+                            <!-- Fecha de pago para pendientes -->
                             <div class="row g-2 mb-2" id="payment_date_group" style="display:none;">
                                 <div class="col-12">
                                     <label class="small-label mb-1">Fecha de pago (para pendientes)</label>
@@ -110,7 +111,7 @@
                                         <input type="date" name="payment_date"
                                                class="form-control form-control-sm"
                                                value="{{ request.form.payment_date or '' }}">
-                                        <span class="input-group-text btn btn-primary btn-sm">
+                                        <span class="input-group-text calendar-icon">
                                             <i class="bi bi-calendar-event"></i>
                                         </span>
                                     </div>
@@ -279,6 +280,7 @@
                             <th>Precio U. (₡)</th>
                             <th>Cant.</th>
                             <th>Total (₡)</th>
+                            <th>Pendiente (₡)</th>
                             <th>Ganancia (₡)</th>
                             <th>Usuario</th>
                             <th>Comentario</th>
@@ -310,6 +312,13 @@
                                 <td class="text-end">₡{{ s.price_per_unit|format_num }}</td>
                                 <td class="text-end">{{ s.quantity }}</td>
                                 <td class="text-end">₡{{ s.total|format_num }}</td>
+                                <td class="text-end">
+                                    {% if s.status == 'Pendiente' %}
+                                        ₡{{ s.total|format_num }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
                                 <td class="text-end">₡{{ s.profit|format_num }}</td>
                                 <td>
                                     {{ s.user.username if s.user else '' }}
@@ -350,7 +359,7 @@
                             {% endfor %}
                         {% else %}
                             <tr>
-                                <td colspan="13" class="text-center text-secondary-custom">
+                                <td colspan="14" class="text-center text-secondary-custom">
                                     No hay ventas registradas con los filtros actuales.
                                 </td>
                             </tr>
