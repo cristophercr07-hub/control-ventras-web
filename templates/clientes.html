@@ -2,32 +2,107 @@
 {% block title %}Clientes - Control de Ventas{% endblock %}
 
 {% block content %}
-
-<div class="row">
-    <div class="col-12">
-        <div class="card p-4 mb-4">
+<div class="row g-3">
+    <div class="col-12 col-lg-7">
+        <div class="card-matrix p-3">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
-                    <h2 class="mb-1 text-accent">Clientes</h2>
-                    <p class="text-secondary-custom mb-0">
-                        Registra y administra tus clientes. Solo tú puedes ver tus propios clientes.
-                    </p>
+                    <div class="small-label mb-1">Base de datos</div>
+                    <h5 class="fw-narrow mb-0">Clientes</h5>
                 </div>
-                <div>
-                    <a href="{{ url_for('clientes_export') }}" class="btn btn-outline-light btn-sm">
-                        <i class="bi bi-file-earmark-excel me-1"></i> Exportar
-                    </a>
-                </div>
+                <form class="d-flex gap-2" method="get">
+                    <input type="text" name="q" class="form-control form-control-sm input-chip"
+                           placeholder="Buscar..." value="{{ q }}">
+                    <button class="btn btn-outline-accent btn-sm">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </form>
             </div>
 
+            <div class="table-responsive">
+                <table class="table table-matrix mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Identificador</th>
+                            <th>Teléfono</th>
+                            <th>Email</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in clients %}
+                        <tr>
+                            <td>{{ c.name }}</td>
+                            <td>{{ c.identifier }}</td>
+                            <td>{{ c.phone }}</td>
+                            <td>{{ c.email }}</td>
+                            <td class="text-end">
+                                <form method="post" action="{{ url_for('delete_client', client_id=c.id) }}"
+                                      onsubmit="return confirm('¿Eliminar este cliente?');">
+                                    <button class="btn btn-outline-danger btn-sm">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not clients %}
+                        <tr>
+                            <td colspan="5" class="text-center text-secondary-custom small">
+                                Aún no has registrado clientes.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+        <div class="card-matrix-soft p-3">
+            <div class="small-label mb-1">Nuevo cliente</div>
+            <h6 class="fw-narrow mb-3">Agregar cliente</h6>
+
             {% if error %}
-                <div class="alert alert-danger py-2 mb-3">{{ error }}</div>
-            {% endif %}
-            {% if success %}
-                <div class="alert alert-success py-2 mb-3">{{ success }}</div>
+            <div class="alert alert-soft-danger py-2 px-3 mb-2 small">
+                <i class="bi bi-exclamation-triangle me-1"></i> {{ error }}
+            </div>
             {% endif %}
 
-            <!-- Formulario de creación -->
-            <form method="post" action="{{ url_for('clientes') }}" class="mb-4">
-                <div class="row g-3 align-items-end">
-                    <
+            <form method="post" action="{{ url_for('add_client') }}">
+                <div class="mb-2">
+                    <label class="small-label mb-1">Nombre</label>
+                    <input type="text" name="name" class="form-control input-chip" required>
+                </div>
+                <div class="mb-2">
+                    <label class="small-label mb-1">Identificador</label>
+                    <input type="text" name="identifier" class="form-control input-chip">
+                </div>
+                <div class="mb-2">
+                    <label class="small-label mb-1">Teléfono</label>
+                    <input type="text" name="phone" class="form-control input-chip">
+                </div>
+                <div class="mb-2">
+                    <label class="small-label mb-1">Email</label>
+                    <input type="email" name="email" class="form-control input-chip">
+                </div>
+                <div class="mb-2">
+                    <label class="small-label mb-1">Dirección</label>
+                    <input type="text" name="address" class="form-control input-chip">
+                </div>
+                <div class="mb-3">
+                    <label class="small-label mb-1">Notas</label>
+                    <textarea name="notes" rows="2" class="form-control"></textarea>
+                </div>
+                <div class="text-end">
+                    <button class="btn btn-accent btn-sm">
+                        Guardar cliente
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
