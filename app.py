@@ -67,7 +67,7 @@ class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False, default=date.today)
     status = db.Column(db.String(20), default="Pagado")  # Pagado / Pendiente
-    name = db.Column(db.String(150))  # Client name (texto plano)
+    name = db.Column(db.String(150))  # nombre cliente (texto)
     product = db.Column(db.String(150))
     cost_per_unit = db.Column(db.Float, default=0.0)
     price_per_unit = db.Column(db.Float, default=0.0)
@@ -99,7 +99,7 @@ class Expense(db.Model):
 def bootstrap_db():
     db.create_all()
 
-    # Crear usuario admin por defecto si no existe
+    # Crear usuario admin por defecto
     if not User.query.filter_by(username="admin").first():
         admin = User(username="admin", is_admin=True)
         admin.set_password("admin")
@@ -130,17 +130,15 @@ def current_user():
 
 @app.template_filter("format_num")
 def format_num(value):
-    """Formatea número como 1.234,56 (estilo más legible)."""
+    """Formatea número como 1.234,56 (más legible)."""
     try:
         number = float(value)
     except (TypeError, ValueError):
         return "0,00"
-    # miles con punto, decimales con coma
     return f"{number:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-
 # -----------------------------------------------------------------------------
-# Rutas de autenticación
+# Auth
 # -----------------------------------------------------------------------------
 
 @app.route("/login", methods=["GET", "POST"])
@@ -167,9 +165,8 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
-
 # -----------------------------------------------------------------------------
-# Gestión de usuarios (solo admin)
+# Gestión de usuarios
 # -----------------------------------------------------------------------------
 
 @app.route("/usuarios", methods=["GET", "POST"])
@@ -215,7 +212,6 @@ def delete_user(user_id):
     db.session.delete(user)
     db.session.commit()
     return redirect(url_for("usuarios"))
-
 
 # -----------------------------------------------------------------------------
 # Clientes
@@ -308,9 +304,7 @@ def productos():
     if request.method == "POST":
         form_type = request.form.get("form_type") or "calculator"
 
-        # ---------------------------------------------------------
-        # 1) Calculadora (en la misma página)
-        # ---------------------------------------------------------
+        # 1) Calculadora
         if form_type == "calculator":
             product_name_input = (request.form.get("product_name") or "").strip()
             cost_input = request.form.get("cost") or "0"
@@ -355,9 +349,7 @@ def productos():
                             success = "Producto guardado en el catálogo."
                         db.session.commit()
 
-        # ---------------------------------------------------------
-        # 2) Formulario directo de catálogo
-        # ---------------------------------------------------------
+        # 2) Catálogo
         elif form_type == "catalog":
             name = (request.form.get("name") or "").strip()
             cost_raw = request.form.get("cost") or "0"
@@ -394,7 +386,7 @@ def productos():
                         success = "Producto creado correctamente."
                     db.session.commit()
 
-    products = Product.query.filter_by(user_id=user.id).order_by(Product.name.asc()).all()
+    products = Product.query.filter_by(user_id=current_user().id).order_by(Product.name.asc()).all()
 
     return render_template(
         "productos.html",
@@ -477,22 +469,65 @@ def ventas():
             else:
                 error = "No se encontró la venta."
         else:
-            # Registrar / actualizar venta
+            # Registrar venta
             date_str = request.form.get("date")
             status = request.form.get("status") or "Pagado"
             client_id_raw = request.form.get("client_id") or ""
-            client_name_manual = (request.form.get("name") or "").strip()
 
-            product_select = request.form.get("product_select") or ""
+            product_select_id = request.form.get("product_select") or ""
             product_input = (request.form.get("product") or "").strip()
 
-            cost_raw = request.form.get("cost_per_unit") or "0"
-            price_raw = request.form.get("price_per_unit") or "0"
+            # Leer campos básicos (raw) para poder usar fallback de producto
+            cost_field_raw = request.form.get("cost_per_unit")
+            price_field_raw = request.form.get("price_per_unit")
             quantity_raw = request.form.get("quantity") or "1"
             comment = (request.form.get("comment") or "").strip()
 
             pending_amount_raw = request.form.get("pending_amount") or "0"
             due_date_str = request.form.get("due_date") or ""
+
+            # Buscar cliente por ID (si viene)
+            client_name_final = ""
+            if client_id_raw:
+                try:
+                    cid = int(client_id_raw)
+                    c = Client.query.filter_by(id=cid, user_id=user.id).first()
+                    if c:
+                        client_name_final = c.name
+                except ValueError:
+                    pass
+
+            # Buscar producto por ID
+            product_obj = None
+            if product_select_id:
+                try:
+                    pid = int(product_select_id)
+                    product_obj = Product.query.filter_by(id=pid, user_id=user.id).first()
+                except ValueError:
+                    product_obj = None
+
+            # Resolver costo y precio usando fallback del producto si el input viene vacío
+            if cost_field_raw:
+                cost_raw = cost_field_raw
+            elif product_obj:
+                cost_raw = str(product_obj.cost or 0)
+            else:
+                cost_raw = "0"
+
+            if price_field_raw:
+                price_raw = price_field_raw
+            elif product_obj:
+                price_raw = str(product_obj.price or 0)
+            else:
+                price_raw = "0"
+
+            # Si el usuario escribió un nombre de producto manual, tiene prioridad
+            if product_input:
+                product_name_final = product_input
+            elif product_obj:
+                product_name_final = product_obj.name
+            else:
+                product_name_final = ""
 
             try:
                 cost = float(cost_raw)
@@ -512,22 +547,6 @@ def ventas():
                     except ValueError:
                         sale_date = date.today()
 
-                    # Determinar nombre del cliente (texto)
-                    client_name_final = client_name_manual
-                    client_id = None
-                    if client_id_raw:
-                        try:
-                            client_id = int(client_id_raw)
-                        except ValueError:
-                            client_id = None
-                        if client_id:
-                            c = Client.query.filter_by(id=client_id, user_id=user.id).first()
-                            if c:
-                                client_name_final = c.name
-
-                    # Determinar nombre del producto
-                    product_name_final = product_input or product_select
-
                     total = price * quantity
                     profit = (price - cost) * quantity
 
@@ -540,6 +559,7 @@ def ventas():
 
                     if status == "Pagado":
                         pending_amount = 0.0
+                        due_date = None
 
                     sale = Sale(
                         date=sale_date,
@@ -560,10 +580,9 @@ def ventas():
                     db.session.commit()
                     success = "Venta registrada correctamente."
 
-    # filtros GET
+    # Filtros GET
     filter_name = (request.args.get("filter_name") or "").strip()
     filter_status = request.args.get("filter_status") or ""
-    filter_user_id = request.args.get("filter_user_id") or ""
     date_from_str = request.args.get("date_from") or ""
     date_to_str = request.args.get("date_to") or ""
 
@@ -598,8 +617,13 @@ def ventas():
     products = Product.query.filter_by(user_id=user.id).order_by(Product.name.asc()).all()
     clients = Client.query.filter_by(user_id=user.id).order_by(Client.name.asc()).all()
 
+    # Mapeo por ID para hacer el JS más robusto
     product_mapping = {
-        p.name: {"cost": round(p.cost or 0, 2), "price": round(p.price or 0, 2)}
+        str(p.id): {
+            "name": p.name,
+            "cost": round(p.cost or 0, 2),
+            "price": round(p.price or 0, 2),
+        }
         for p in products
     }
 
@@ -619,7 +643,6 @@ def ventas():
         total_pendiente=total_pendiente,
         filter_name=filter_name,
         filter_status=filter_status,
-        filter_user_id=filter_user_id,
         date_from=date_from_str,
         date_to=date_to_str,
         products=products,
@@ -967,7 +990,7 @@ def dashboard():
     top_labels = [p[0] for p in sorted_products]
     top_values = [round(p[1], 2) for p in sorted_products]
 
-    # Ganancia por semana ISO
+    # Ganancia por semana
     weekly_profit = {}
     for s in sales_period:
         if not s.date:
@@ -980,12 +1003,11 @@ def dashboard():
     week_labels = sorted(weekly_profit.keys())
     week_values = [round(weekly_profit[w], 2) for w in week_labels]
 
-    # Ganancia por usuario (para un solo usuario actual)
+    # Ganancia por usuario (solo el actual)
     user_profit = {user.username: total_ganancia}
     user_labels = list(user_profit.keys())
     user_values = [round(v, 2) for v in user_profit.values()]
 
-    # Alertas: pagos pendientes
     today_dt = date.today()
     overdue_sales = Sale.query.filter_by(user_id=user.id, status="Pendiente") \
         .filter(Sale.due_date < today_dt).all()
@@ -998,7 +1020,6 @@ def dashboard():
     upcoming_count = len(upcoming_sales)
 
     alerts = []
-
     if overdue_total > 0:
         alerts.append({
             "level": "danger",
@@ -1034,9 +1055,8 @@ def dashboard():
         upcoming_count=upcoming_count,
     )
 
-
 # -----------------------------------------------------------------------------
-# API sencilla para obtener datos de producto
+# API producto (por si quieres pedirlo desde JS)
 # -----------------------------------------------------------------------------
 
 @app.route("/api/product/<int:product_id>")
@@ -1051,7 +1071,6 @@ def api_product(product_id):
         "price": round(p.price or 0, 2),
         "margin_percent": round(p.margin_percent or 0, 2),
     })
-
 
 # -----------------------------------------------------------------------------
 # Main
