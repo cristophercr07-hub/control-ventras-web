@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% extends "base.html" %}
 {% block title %}Productos y Calculadora - Control de Ventas{% endblock %}
 
 {% block content %}
@@ -17,9 +17,9 @@
         <div class="card p-4 mb-4">
             <h2 class="mb-3 text-accent">Calculadora de precios</h2>
             <p class="text-secondary-custom text-center mb-3">
-                Ingresa el <b>costo</b>, el <b>margen deseado</b> (mínimo {{ "%.2f"|format(min_margin) }}%)
-                y la cantidad. La calculadora sugerirá un precio y mostrará la utilidad. Puedes
-                guardar el resultado en el catálogo para usarlo luego en la pestaña de Ventas.
+                Ingresa el <b>costo</b>, el <b>margen deseado (%)</b>
+                y la <b>cantidad</b>. La calculadora sugerirá un precio y mostrará la utilidad.
+                Puedes guardar el resultado en el <b>catálogo</b> para usarlo luego en la pestaña de Ventas.
             </p>
 
             <form method="post" action="{{ url_for('productos') }}">
@@ -46,9 +46,7 @@
                         >
                     </div>
                     <div class="col-md-2 col-6">
-                        <label class="form-label text-secondary-custom">
-                            Margen (%)<br><span class="text-secondary-custom">(mín. {{ "%.2f"|format(min_margin) }}%)</span>
-                        </label>
+                        <label class="form-label text-secondary-custom">Margen deseado (%)</label>
                         <input
                             type="number"
                             step="0.01"
@@ -159,9 +157,8 @@
 
             <!-- LISTADO DE PRODUCTOS -->
             {% if products and products|length > 0 %}
-                <!-- Versión escritorio -->
                 <div class="table-responsive d-none d-md-block">
-                    <table class="table table-dark-custom table-sm align-middle mb-0">
+                    <table class="table table-dark-custom table-striped table-sm align-middle">
                         <thead>
                             <tr class="text-center">
                                 <th>Nombre</th>
@@ -174,20 +171,20 @@
                         <tbody>
                             {% for p in products %}
                                 <tr>
-                                    <td class="text-center">{{ p.name }}</td>
-                                    <td class="text-end">₡{{ "%.2f"|format(p.cost) }}</td>
-                                    <td class="text-end">₡{{ "%.2f"|format(p.price) }}</td>
-                                    <td class="text-end">{{ "%.2f"|format(p.margin_percent) }}</td>
-                                    <td class="text-center">
+                                    <td class="text-center text-dark fw-bold bg-light">{{ p.name }}</td>
+                                    <td class="text-end text-dark bg-light">{{ "%.2f"|format(p.cost) }}</td>
+                                    <td class="text-end text-dark bg-light">{{ "%.2f"|format(p.price) }}</td>
+                                    <td class="text-end text-dark bg-light">{{ "%.2f"|format(p.margin_percent) }}</td>
+                                    <td class="text-center bg-light">
                                         <form method="post"
                                               action="{{ url_for('delete_product', product_id=p.id) }}"
-                                              class="d-inline"
-                                              onsubmit="return doubleConfirm(
-                                                  '¿Eliminar este producto del catálogo?',
-                                                  'Las ventas existentes no se borran, pero no podrás seleccionarlo más. ¿Confirmas?'
-                                              );">
+                                              class="d-inline">
                                             <button type="submit"
-                                                    class="btn btn-sm btn-outline-danger">
+                                                    class="btn btn-sm btn-outline-danger"
+                                                    onclick="return doubleConfirm(
+                                                        '¿Eliminar este producto del catálogo?',
+                                                        'Las ventas existentes no se borran, pero no podrás seleccionarlo más. ¿Confirmas?'
+                                                    );">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
@@ -201,28 +198,26 @@
                 <!-- Versión móvil tipo tarjeta -->
                 <div class="d-block d-md-none">
                     {% for p in products %}
-                        <div class="border rounded p-2 mb-2 bg-light">
+                        <div class="border rounded p-2 mb-2 bg-light text-dark">
                             <div><strong>{{ p.name }}</strong></div>
-                            <div class="text-secondary-custom">
-                                Costo:
-                                <span class="text-dark fw-bold">{{ "%.2f"|format(p.cost) }} ₡</span> |
-                                Precio:
-                                <span class="text-dark fw-bold">{{ "%.2f"|format(p.price) }} ₡</span>
+                            <div class="text-muted">
+                                Costo: <span class="fw-bold">{{ "%.2f"|format(p.cost) }} ₡</span> |
+                                Precio: <span class="fw-bold">{{ "%.2f"|format(p.price) }} ₡</span>
                             </div>
-                            <div class="text-secondary-custom">
+                            <div class="text-muted">
                                 Margen estimado:
-                                <span class="text-dark fw-bold">{{ "%.2f"|format(p.margin_percent) }} %</span>
+                                <span class="fw-bold">{{ "%.2f"|format(p.margin_percent) }} %</span>
                             </div>
                             <div class="mt-1 text-end">
                                 <form method="post"
                                       action="{{ url_for('delete_product', product_id=p.id) }}"
-                                      class="d-inline"
-                                      onsubmit="return doubleConfirm(
-                                          '¿Eliminar este producto?',
-                                          'No se borran las ventas, solo el catálogo. ¿Confirmas?'
-                                      );">
+                                      class="d-inline">
                                     <button type="submit"
-                                            class="btn btn-sm btn-outline-danger">
+                                            class="btn btn-sm btn-outline-danger"
+                                            onclick="return doubleConfirm(
+                                                '¿Eliminar este producto?',
+                                                'No se borran las ventas, solo el catálogo. ¿Confirmas?'
+                                            );">
                                         <i class="bi bi-trash"></i> Eliminar
                                     </button>
                                 </form>
@@ -240,3 +235,5 @@
 </div>
 
 {% endblock %}
+
+
