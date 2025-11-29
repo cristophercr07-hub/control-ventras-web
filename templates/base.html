@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html><!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -27,6 +27,7 @@
             --border-soft: #1b3b24;
             --text-main: #e8f5e9;
             --text-secondary: #9ccc9c;
+            --text-header: #062b12;
             --accent: #00ff41;
             --accent-soft: rgba(0, 255, 65, 0.20);
         }
@@ -75,17 +76,37 @@
             font-size: 0.9rem;
             position: relative;
             transition: color 0.2s ease, background-color 0.2s ease;
+            border-radius: 999px;
+            padding-inline: 0.9rem;
+        }
+
+        .nav-link::after {
+            content: "";
+            position: absolute;
+            left: 10%;
+            right: 10%;
+            bottom: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0;
+            transform: scaleX(0.7);
+            transition: opacity 0.2s ease, transform 0.2s ease;
         }
 
         .nav-link:hover {
             color: var(--accent) !important;
+            background-color: rgba(0, 255, 65, 0.06);
         }
 
         .nav-link.active {
             color: #000000 !important;
             background: linear-gradient(135deg, #00ff41, #00c932);
-            border-radius: 999px;
-            padding-inline: 0.85rem;
+            box-shadow: 0 0 12px rgba(0, 255, 65, 0.45);
+        }
+
+        .nav-link.active::after {
+            opacity: 1;
+            transform: scaleX(1);
         }
 
         /* CARDS / CONTENEDORES */
@@ -157,7 +178,6 @@
             color: var(--accent);
         }
 
-        /* Tablas */
         .table-dark-custom {
             color: var(--text-main);
             background-color: #020502;
@@ -166,17 +186,15 @@
 
         .table-dark-custom thead th {
             border-bottom: 1px solid var(--border-soft);
-            color: #022b11; /* verde muy oscuro / casi negro */
-            background-color: #a5d6a7; /* encabezado más claro para legibilidad */
+            color: var(--text-header);
+            background-color: #b8f5c8;
             font-size: 0.85rem;
             text-align: center;
-            vertical-align: middle;
         }
 
         .table-dark-custom tbody td {
             font-size: 0.8rem;
             vertical-align: middle;
-            text-align: center;
         }
 
         .table-dark-custom tbody tr:nth-child(even) {
@@ -212,23 +230,6 @@
             box-shadow: 0 0 10px rgba(0, 255, 65, 0.25);
         }
 
-        /* Icono del date picker más visible */
-        input[type="date"] {
-            color-scheme: dark;
-        }
-
-        input[type="date"]::-webkit-calendar-picker-indicator {
-            background-color: var(--accent-soft);
-            border-radius: 4px;
-            padding: 2px;
-            cursor: pointer;
-            filter: invert(0); /* icono oscuro sobre fondo verde claro */
-        }
-
-        input[type="date"]::-moz-focus-inner {
-            border: 0;
-        }
-
         @media (max-width: 576px) {
             .navbar-brand {
                 font-size: 1rem;
@@ -257,12 +258,6 @@
                 <div class="collapse navbar-collapse" id="mainNavbar">
                     <ul class="navbar-nav me-auto mb-2 mb-lg-0 fw-narrow">
                         <li class="nav-item">
-                            <a class="nav-link spa-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
-                               href="{{ url_for('dashboard') }}">
-                                Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item">
                             <a class="nav-link spa-link {% if request.endpoint == 'ventas' %}active{% endif %}"
                                href="{{ url_for('ventas') }}">
                                 Ventas
@@ -284,6 +279,12 @@
                             <a class="nav-link spa-link {% if request.endpoint == 'flujo' %}active{% endif %}"
                                href="{{ url_for('flujo') }}">
                                 Control de Flujo
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link spa-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
+                               href="{{ url_for('dashboard') }}">
+                                Dashboard
                             </a>
                         </li>
                         {% if session.get('is_admin') %}
@@ -318,14 +319,13 @@
         </main>
     </div>
 
-    <!-- Scripts base -->
+    <!-- JS base -->
     <script
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
         crossorigin="anonymous"
     ></script>
 
-    <!-- Chart.js para el Dashboard -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- Fondo Matrix -->
@@ -374,28 +374,31 @@
         })();
     </script>
 
+    <!-- Función global de doble confirmación -->
+    <script>
+        function doubleConfirm(msg1, msg2) {
+            if (!confirm(msg1)) return false;
+            return confirm(msg2);
+        }
+    </script>
+
     <!-- Navegación tipo SPA -->
     <script>
         (function() {
             const content = document.getElementById('app-content');
 
-            function setActiveNavByUrl(url) {
-                try {
-                    const urlObj = new URL(url, window.location.origin);
-                    const path = urlObj.pathname;
-                    const links = document.querySelectorAll('a.nav-link.spa-link');
-                    links.forEach(l => l.classList.remove('active'));
-                    links.forEach(l => {
-                        const href = l.getAttribute('href');
-                        if (!href) return;
-                        const linkPath = new URL(href, window.location.origin).pathname;
-                        if (linkPath === path) {
-                            l.classList.add('active');
-                        }
-                    });
-                } catch (e) {
-                    // no-op
-                }
+            function setActiveLink(pathname) {
+                const links = document.querySelectorAll('a.spa-link');
+                links.forEach(link => {
+                    const href = link.getAttribute('href');
+                    if (!href) return;
+                    const linkPath = new URL(href, window.location.origin).pathname;
+                    if (linkPath === pathname) {
+                        link.classList.add('active');
+                    } else {
+                        link.classList.remove('active');
+                    }
+                });
             }
 
             function loadPage(url, pushState = true) {
@@ -406,10 +409,7 @@
                 fetch(url, {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 })
-                .then(response => {
-                    if (!response.ok) throw new Error('Error al cargar la página');
-                    return response.text();
-                })
+                .then(response => response.text())
                 .then(html => {
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(html, 'text/html');
@@ -419,9 +419,15 @@
                     if (newContent) {
                         content.innerHTML = newContent.innerHTML;
                         if (newTitle) document.title = newTitle.textContent;
-                        if (pushState) history.pushState({ url: url }, '', url);
-                        setActiveNavByUrl(url);
-                        // Evento para que las páginas puedan enganchar inicialización extra
+
+                        const newPath = new URL(url, window.location.origin).pathname;
+                        setActiveLink(newPath);
+
+                        if (pushState) {
+                            history.pushState({ url: url }, '', url);
+                        }
+
+                        // Avisar a otros scripts (ventas, dashboard, etc.)
                         window.dispatchEvent(new Event('spa:navigation-complete'));
                     } else {
                         window.location.href = url;
@@ -437,7 +443,7 @@
                 if (!link) return;
 
                 const href = link.getAttribute('href');
-                if (!href || href.startsWith('http') || href.startsWith('mailto:')) return;
+                if (!href || href.startsWith('http')) return;
 
                 e.preventDefault();
                 loadPage(href, true);
@@ -447,7 +453,55 @@
                 const url = (e.state && e.state.url) ? e.state.url : window.location.pathname;
                 loadPage(url, false);
             });
+
+            window.addEventListener('DOMContentLoaded', function() {
+                setActiveLink(window.location.pathname);
+            });
         })();
+    </script>
+
+    <!-- Inicialización específica de la pestaña Ventas (rellenar costo/precio) -->
+    <script>
+        function initVentasPage() {
+            const mappingScript = document.getElementById('product-mapping-json');
+            if (!mappingScript) return; // No estamos en la pestaña Ventas
+
+            let mapping = {};
+            try {
+                mapping = JSON.parse(mappingScript.textContent || '{}');
+            } catch (e) {
+                console.error('Error al leer product_mapping JSON', e);
+                return;
+            }
+
+            const select = document.getElementById("product_select");
+            const productInput = document.getElementById("product_input");
+            const costInput = document.getElementById("cost_per_unit");
+            const priceInput = document.getElementById("price_per_unit");
+
+            if (!select) return;
+
+            // Evitar múltiples listeners: clonar el select
+            const newSelect = select.cloneNode(true);
+            select.parentNode.replaceChild(newSelect, select);
+
+            newSelect.addEventListener("change", function() {
+                const name = this.value;
+                if (name && mapping[name]) {
+                    if (productInput) productInput.value = name;
+                    if (costInput)  costInput.value  = mapping[name].cost;
+                    if (priceInput) priceInput.value = mapping[name].price;
+                }
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', function () {
+            initVentasPage();
+        });
+
+        window.addEventListener('spa:navigation-complete', function () {
+            initVentasPage();
+        });
     </script>
 
     {% block extra_scripts %}{% endblock %}
