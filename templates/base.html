@@ -5,6 +5,7 @@
     <title>{% block title %}Control de Ventas{% endblock %}</title>
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Bootstrap -->
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         rel="stylesheet"
@@ -14,129 +15,248 @@
         rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
     >
-    <!-- Chart.js para los gráficos -->
+    <!-- Chart.js para gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
+        :root {
+            --bg-main: #05070a;
+            --bg-card: #111827;
+            --bg-card-soft: #020617;
+            --border-soft: #1f2937;
+            --accent: #22d3ee;          /* cyan */
+            --accent-soft: rgba(34, 211, 238, 0.12);
+            --text-main: #f9fafb;
+            --text-secondary: #9ca3af;
+            --danger: #f97373;
+            --warning: #fbbf24;
+        }
+
         /* Fondo general */
         body {
-            background-color: #000000;
-            color: #ffffff;
-            font-family: "Arial Narrow", Arial, sans-serif;
+            background: radial-gradient(circle at top, #020617 0, #020617 40%, #000000 100%);
+            color: var(--text-main);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             margin: 0;
             padding: 0;
+            min-height: 100vh;
         }
 
-        /* Canvas de fondo estilo Matrix */
-        #matrixCanvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            background: #000000;
-        }
-
-        /* Navbar y tarjetas por encima del fondo */
+        /* Navbar */
         .navbar-dark {
-            background-color: #111111;
-            position: relative;
-            z-index: 2;
+            background-color: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #1f2937;
         }
+
         .navbar-brand {
             font-weight: 600;
+            letter-spacing: 0.03em;
         }
 
-        .container.mb-4 {
+        .nav-link {
+            font-size: 0.9rem;
+            color: var(--text-secondary) !important;
+        }
+
+        .nav-link.active,
+        .nav-link.text-accent {
+            color: var(--accent) !important;
+            font-weight: 500;
+        }
+
+        /* Contenedor principal */
+        .main-container {
             position: relative;
-            z-index: 2;
+            z-index: 1;
+            padding-top: 1.5rem;
+            padding-bottom: 2rem;
         }
 
+        /* Tarjetas */
         .card {
-            background-color: #111111;
-            border: 1px solid #333333;
-            border-radius: 10px;
+            background-color: var(--bg-card);
+            border-radius: 0.9rem;
+            border: 1px solid var(--border-soft);
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.6);
         }
 
-        /* Todos los textos (p) dentro de tarjetas enmarcados */
+        .card-matrix,
+        .card-matrix-soft {
+            background-color: var(--bg-card);
+            border-radius: 0.9rem;
+            border: 1px solid var(--border-soft);
+        }
+
+        .card-matrix-soft {
+            background-color: var(--bg-card-soft);
+        }
+
         .card p {
-            border: 1px solid #333333;
-            border-radius: 6px;
-            padding: 0.35rem 0.5rem;
-            background-color: #050505;
+            margin-bottom: 0.4rem;
         }
 
-        .form-control, .form-select {
-            background-color: #000000;
-            color: #ffffff;
-            border-color: #333333;
-        }
-        .form-control:focus, .form-select:focus {
-            background-color: #000000;
-            color: #ffffff;
-            border-color: #00e5e5;
-            box-shadow: none;
+        /* Textos */
+        .text-accent {
+            color: var(--accent) !important;
         }
 
+        .text-secondary-custom {
+            color: var(--text-secondary) !important;
+        }
+
+        .small-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-secondary);
+        }
+
+        .fw-narrow {
+            font-stretch: condensed;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            letter-spacing: 0.01em;
+        }
+
+        h1 { font-size: 1.5rem; }
+        h2 { font-size: 1.25rem; }
+        h3 { font-size: 1.1rem; }
+        h4 { font-size: 1rem; }
+        h5, h6 { font-size: 0.95rem; }
+
+        p, td, th, label, input, button, a, li {
+            font-size: 0.9rem;
+        }
+
+        /* Inputs / selects */
+        .form-control,
+        .form-select {
+            background-color: #020617;
+            color: var(--text-main);
+            border-color: #1f2937;
+            border-radius: 0.6rem;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            background-color: #020617;
+            color: var(--text-main);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.4);
+        }
+
+        /* Botones */
         .btn-primary {
-            background-color: #00e5e5;
-            border-color: #00e5e5;
-            color: #000000;
+            background: linear-gradient(135deg, #22d3ee, #0ea5e9);
+            border: none;
+            color: #0b1120;
+            font-weight: 500;
         }
+
         .btn-primary:hover {
-            background-color: #00bcbc;
-            border-color: #00bcbc;
+            background: linear-gradient(135deg, #06b6d4, #0284c7);
+            color: #0b1120;
         }
 
         .btn-outline-light {
-            border-color: #888888;
-            color: #ffffff;
+            border-color: #4b5563;
+            color: var(--text-main);
         }
+
         .btn-outline-light:hover {
-            border-color: #00e5e5;
-            color: #00e5e5;
+            border-color: var(--accent);
+            color: var(--accent);
         }
 
-        .text-accent {
-            color: #00e5e5;
-        }
-        .text-secondary-custom {
-            color: #888888;
+        .btn-outline-danger {
+            border-color: #b91c1c;
+            color: #fecaca;
         }
 
-        h1, h2, h3, h4, h5 {
-            font-size: 14pt;
-            text-align: center;
-        }
-        p, td, th, label, input, button, a, li {
-            font-size: 12pt;
+        .btn-outline-danger:hover {
+            background-color: #7f1d1d;
+            color: #fee2e2;
         }
 
-        /* Ajustes para pantallas pequeñas (iPhone, etc.) */
+        /* Tablas */
+        table.table-dark {
+            background-color: transparent;
+        }
+
+        table.table-dark thead th {
+            border-bottom: 1px solid #374151;
+            color: #d1d5db;
+            font-weight: 500;
+        }
+
+        table.table-dark tbody td {
+            border-top: 1px solid #1f2937;
+        }
+
+        .table-striped > tbody > tr:nth-of-type(odd) > * {
+            background-color: rgba(15, 23, 42, 0.85);
+        }
+
+        .table-striped > tbody > tr:nth-of-type(even) > * {
+            background-color: rgba(15, 23, 42, 0.65);
+        }
+
+        /* Alertas */
+        .alert {
+            border-radius: 0.6rem;
+            border-width: 1px;
+            padding-top: 0.4rem;
+            padding-bottom: 0.4rem;
+            font-size: 0.85rem;
+        }
+
+        .alert-danger {
+            background-color: rgba(248, 113, 113, 0.08);
+            border-color: rgba(248, 113, 113, 0.4);
+            color: #fecaca;
+        }
+
+        .alert-warning {
+            background-color: rgba(251, 191, 36, 0.08);
+            border-color: rgba(251, 191, 36, 0.4);
+            color: #fef3c7;
+        }
+
+        /* Badges */
+        .badge-soft {
+            background-color: rgba(15, 23, 42, 0.8);
+            border: 1px solid #4b5563;
+            border-radius: 999px;
+            padding: 0.2rem 0.8rem;
+            font-size: 0.75rem;
+        }
+
+        /* Inputs tipo "chip" */
+        .input-chip {
+            border-radius: 999px !important;
+            padding-left: 0.9rem;
+            padding-right: 0.9rem;
+        }
+
+        /* Responsive */
         @media (max-width: 576px) {
             body {
                 font-size: 14px;
             }
-            h1, h2, h3, h4, h5 {
-                font-size: 15px;
+            .main-container {
+                padding-top: 1rem;
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
             }
             .card {
-                padding: 0.75rem !important;
-            }
-            .btn {
-                padding-top: 0.5rem;
-                padding-bottom: 0.5rem;
-                font-size: 13px;
+                padding: 0.85rem !important;
             }
             table.table-sm th,
             table.table-sm td {
-                font-size: 11px;
+                font-size: 0.8rem;
                 white-space: nowrap;
-            }
-            .container.mb-4 {
-                padding-left: 0.5rem;
-                padding-right: 0.5rem;
             }
         }
     </style>
@@ -145,13 +265,10 @@
 </head>
 <body>
 
-<!-- Fondo animado Matrix -->
-<canvas id="matrixCanvas"></canvas>
-
-<nav class="navbar navbar-dark navbar-expand-lg mb-4">
+<nav class="navbar navbar-dark navbar-expand-lg">
     <div class="container-fluid">
-        <a class="navbar-brand text-accent" href="{{ url_for('ventas') }}">
-            Control de Ventas
+        <a class="navbar-brand text-accent" href="{{ url_for('dashboard') }}">
+            <i class="bi bi-graph-up-arrow me-1"></i> Control de Ventas
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar"
                 aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -162,38 +279,38 @@
             <ul class="navbar-nav me-auto">
                 {% if session.get('user_id') %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'ventas' %}active text-accent{% else %}text-secondary-custom{% endif %}"
+                        <a class="nav-link {% if request.endpoint == 'ventas' %}active text-accent{% endif %}"
                            href="{{ url_for('ventas') }}">
                             Ventas
                         </a>
-                   </li>
-                   <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'clientes' %}active text-accent{% else %}text-secondary-custom{% endif %}"
-                           href="{{ url_for('clientes') }}">
-                            Clientes
-                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'productos' %}active text-accent{% else %}text-secondary-custom{% endif %}"
+                        <a class="nav-link {% if request.endpoint == 'productos' %}active text-accent{% endif %}"
                            href="{{ url_for('productos') }}">
                             Productos
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active text-accent{% else %}text-secondary-custom{% endif %}"
+                        <a class="nav-link {% if request.endpoint == 'clientes' %}active text-accent{% endif %}"
+                           href="{{ url_for('clientes') }}">
+                            Clientes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active text-accent{% endif %}"
                            href="{{ url_for('dashboard') }}">
                             Dashboard
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'flujo' %}active text-accent{% else %}text-secondary-custom{% endif %}"
+                        <a class="nav-link {% if request.endpoint == 'flujo' %}active text-accent{% endif %}"
                            href="{{ url_for('flujo') }}">
                             Control de Flujo
                         </a>
                     </li>
                     {% if session.get('is_admin') %}
                         <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'usuarios' %}active text-accent{% else %}text-secondary-custom{% endif %}"
+                            <a class="nav-link {% if request.endpoint == 'usuarios' %}active text-accent{% endif %}"
                                href="{{ url_for('usuarios') }}">
                                 Usuarios
                             </a>
@@ -205,14 +322,17 @@
                 {% if session.get('user') %}
                     <li class="nav-item">
                         <span class="nav-link text-secondary-custom">
-                            Usuario: {{ session.get('user') }}
+                            <i class="bi bi-person-circle me-1"></i>
+                            {{ session.get('user') }}
                             {% if session.get('is_admin') %}
-                                (admin)
+                                <span class="text-accent">(admin)</span>
                             {% endif %}
                         </span>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link text-danger" href="{{ url_for('logout') }}">Salir</a>
+                        <a class="nav-link text-danger" href="{{ url_for('logout') }}">
+                            <i class="bi bi-box-arrow-right me-1"></i> Salir
+                        </a>
                     </li>
                 {% endif %}
             </ul>
@@ -220,7 +340,7 @@
     </div>
 </nav>
 
-<div class="container mb-4">
+<div class="container main-container">
     {% block content %}{% endblock %}
 </div>
 
@@ -229,58 +349,7 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-    // ----------------------------------------
-    // Fondo Matrix
-    // ----------------------------------------
-    const canvas = document.getElementById('matrixCanvas');
-    if (canvas && canvas.getContext) {
-        const ctx = canvas.getContext('2d');
-        let width, height, fontSize, columns, drops;
-
-        const matrixChars = 'アカサタナハマヤラワ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-
-        function initMatrix() {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
-            fontSize = 16;
-            columns = Math.floor(width / fontSize);
-            drops = [];
-            for (let i = 0; i < columns; i++) {
-                drops[i] = Math.random() * (height / fontSize);
-            }
-        }
-
-        function drawMatrix() {
-            // Fondo semitransparente para efecto de rastro
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-            ctx.fillRect(0, 0, width, height);
-
-            ctx.fillStyle = '#0f0';
-            ctx.font = fontSize + 'px monospace';
-
-            for (let i = 0; i < drops.length; i++) {
-                const text = matrixChars[Math.floor(Math.random() * matrixChars.length)];
-                const x = i * fontSize;
-                const y = drops[i] * fontSize;
-
-                ctx.fillText(text, x, y);
-
-                if (y > height && Math.random() > 0.975) {
-                    drops[i] = 0;
-                }
-                drops[i] += 1;
-            }
-        }
-
-        initMatrix();
-        setInterval(drawMatrix, 50);
-
-        window.addEventListener('resize', initMatrix);
-    }
-
-    // ----------------------------------------
-    // Autollenar fecha de hoy
-    // ----------------------------------------
+    // Autollenar fecha de hoy en los inputs con data-autotoday="1"
     const today = new Date().toISOString().slice(0, 10);
     document.querySelectorAll('input[type="date"][data-autotoday="1"]').forEach(function(inp) {
         if (!inp.value) {
@@ -289,7 +358,7 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 });
 
-// Doble confirmación global para botones peligrosos
+// Doble confirmación global para acciones peligrosas
 function doubleConfirm(msg1, msg2) {
     if (!confirm(msg1)) {
         return false;
@@ -300,4 +369,3 @@ function doubleConfirm(msg1, msg2) {
 {% endblock %}
 </body>
 </html>
-
