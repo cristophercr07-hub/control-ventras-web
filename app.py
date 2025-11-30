@@ -1,4 +1,13 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_file, jsonify
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    session,
+    send_file,
+    jsonify,
+)
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -163,6 +172,12 @@ def current_user():
     return User.query.get(uid)
 
 
+# Hacer disponible current_user() en todos los templates Jinja
+@app.context_processor
+def inject_current_user():
+    return dict(current_user=current_user)
+
+
 def login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -242,34 +257,31 @@ def users():
     return render_template("usuarios.html", users=all_users)
 
 
-@app.route("/users/add", methods=["GET", "POST"])
+@app.route("/users/add", methods=["POST"])
 @admin_required
 def add_user():
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "").strip()
-        is_admin = bool(request.form.get("is_admin"))
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "").strip()
+    is_admin = bool(request.form.get("is_admin"))
 
-        if not username or not password:
-            return render_template(
-                "usuarios.html",
-                users=User.query.order_by(User.username.asc()).all(),
-                error="Usuario y contraseña son obligatorios",
-            )
+    if not username or not password:
+        return render_template(
+            "usuarios.html",
+            users=User.query.order_by(User.username.asc()).all(),
+            error="Usuario y contraseña son obligatorios",
+        )
 
-        if User.query.filter_by(username=username).first():
-            return render_template(
-                "usuarios.html",
-                users=User.query.order_by(User.username.asc()).all(),
-                error="Ya existe un usuario con ese nombre",
-            )
+    if User.query.filter_by(username=username).first():
+        return render_template(
+            "usuarios.html",
+            users=User.query.order_by(User.username.asc()).all(),
+            error="Ya existe un usuario con ese nombre",
+        )
 
-        user = User(username=username, is_admin=is_admin)
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
-        return redirect(url_for("users"))
-
+    user = User(username=username, is_admin=is_admin)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
     return redirect(url_for("users"))
 
 
@@ -307,38 +319,36 @@ def clients():
     return render_template("clientes.html", clients=clients_list, q=q)
 
 
-@app.route("/clients/add", methods=["GET", "POST"])
+@app.route("/clients/add", methods=["POST"])
 @login_required
 def add_client():
     user = current_user()
-    if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        identifier = request.form.get("identifier", "").strip()
-        phone = request.form.get("phone", "").strip()
-        email = request.form.get("email", "").strip()
-        address = request.form.get("address", "").strip()
-        notes = request.form.get("notes", "").strip()
 
-        if not name:
-            return render_template(
-                "clientes.html",
-                clients=Client.query.filter_by(user_id=user.id).all(),
-                error="El nombre del cliente es obligatorio",
-            )
+    name = request.form.get("name", "").strip()
+    identifier = request.form.get("identifier", "").strip()
+    phone = request.form.get("phone", "").strip()
+    email = request.form.get("email", "").strip()
+    address = request.form.get("address", "").strip()
+    notes = request.form.get("notes", "").strip()
 
-        client = Client(
-            name=name,
-            identifier=identifier,
-            phone=phone,
-            email=email,
-            address=address,
-            notes=notes,
-            user_id=user.id,
+    if not name:
+        return render_template(
+            "clientes.html",
+            clients=Client.query.filter_by(user_id=user.id).all(),
+            error="El nombre del cliente es obligatorio",
         )
-        db.session.add(client)
-        db.session.commit()
-        return redirect(url_for("clients"))
 
+    client = Client(
+        name=name,
+        identifier=identifier,
+        phone=phone,
+        email=email,
+        address=address,
+        notes=notes,
+        user_id=user.id,
+    )
+    db.session.add(client)
+    db.session.commit()
     return redirect(url_for("clients"))
 
 
@@ -604,26 +614,36 @@ def flow():
 
         initial_custody = float(request.form.get("initial_custody") or 0)
         initial_capital = float(request.form.get("initial_capital") or 0)
-        initial_external_accounts = float(request.form.get("initial_external_accounts") or 0)
+        initial_external_accounts = float(
+            request.form.get("initial_external_accounts") or 0
+        )
 
         gross_profit = float(request.form.get("gross_profit") or 0)
         taxes_paid = float(request.form.get("taxes_paid") or 0)
         expenses_paid = float(request.form.get("expenses_paid") or 0)
         reinvestment = float(request.form.get("reinvestment") or 0)
-        custody_used_for_fxd = float(request.form.get("custody_used_for_fxd") or 0)
+        custody_used_for_fxd = float(
+            request.form.get("custody_used_for_fxd") or 0
+        )
         capital_for_fxd = float(request.form.get("capital_for_fxd") or 0)
 
         final_custody = float(request.form.get("final_custody") or 0)
         final_capital = float(request.form.get("final_capital") or 0)
-        final_external_accounts = float(request.form.get("final_external_accounts") or 0)
+        final_external_accounts = float(
+            request.form.get("final_external_accounts") or 0
+        )
 
         updated_capital = float(request.form.get("updated_capital") or 0)
         updated_custody = float(request.form.get("updated_custody") or 0)
-        updated_external_accounts = float(request.form.get("updated_external_accounts") or 0)
+        updated_external_accounts = float(
+            request.form.get("updated_external_accounts") or 0
+        )
 
         notes = request.form.get("notes", "").strip()
 
-        record = DailyFlow.query.filter_by(user_id=user.id, date=date_value).first()
+        record = DailyFlow.query.filter_by(
+            user_id=user.id, date=date_value
+        ).first()
         if not record:
             record = DailyFlow(user_id=user.id, date=date_value)
 
@@ -659,11 +679,22 @@ def flow():
     if not record:
         record = DailyFlow(user_id=user.id, date=today_val)
 
-    expenses = Expense.query.filter_by(user_id=user.id).order_by(Expense.date.desc()).limit(20).all()
+    expenses = (
+        Expense.query.filter_by(user_id=user.id)
+        .order_by(Expense.date.desc())
+        .limit(20)
+        .all()
+    )
 
     total_expenses = sum(e.amount or 0 for e in expenses)
-    total_reinvestments = sum(e.amount or 0 for e in expenses if e.category == "Reinversión")
-    total_other = sum(e.amount or 0 for e in expenses if e.category not in ["Gasto", "Reinversión"])
+    total_reinvestments = sum(
+        e.amount or 0 for e in expenses if e.category == "Reinversión"
+    )
+    total_other = sum(
+        e.amount or 0
+        for e in expenses
+        if e.category not in ["Gasto", "Reinversión"]
+    )
 
     return render_template(
         "flujo.html",
@@ -709,7 +740,7 @@ def delete_expense(expense_id):
 
 
 # -----------------------------------------------------------------------------
-# Dashboard (corregido con max_weekly_profit y min_weekly_profit)
+# Dashboard (con max_weekly_profit y min_weekly_profit)
 # -----------------------------------------------------------------------------
 
 
@@ -756,7 +787,9 @@ def dashboard():
     if end is None:
         end = today
 
-    sales_q = Sale.query.filter_by(user_id=user.id).filter(Sale.date >= start, Sale.date <= end)
+    sales_q = Sale.query.filter_by(user_id=user.id).filter(
+        Sale.date >= start, Sale.date <= end
+    )
     sales_period = sales_q.all()
 
     total_monto_period = sum(s.total or 0 for s in sales_period)
@@ -765,7 +798,11 @@ def dashboard():
 
     days_diff = (end - start).days + 1
     avg_daily_profit = total_ganancia / days_diff if days_diff > 0 else 0.0
-    avg_ticket = total_monto_period / total_ventas_period if total_ventas_period > 0 else 0.0
+    avg_ticket = (
+        total_monto_period / total_ventas_period
+        if total_ventas_period > 0
+        else 0.0
+    )
 
     # Top productos por ganancia
     product_profit = {}
@@ -775,7 +812,9 @@ def dashboard():
         product_profit.setdefault(s.product, 0.0)
         product_profit[s.product] += s.profit or 0.0
 
-    sorted_products = sorted(product_profit.items(), key=lambda x: x[1], reverse=True)[:6]
+    sorted_products = sorted(
+        product_profit.items(), key=lambda x: x[1], reverse=True
+    )[:6]
     top_labels = [p[0] for p in sorted_products]
     top_values = [round(p[1], 2) for p in sorted_products]
 
@@ -792,7 +831,7 @@ def dashboard():
     week_labels = sorted(weekly_profit.keys())
     week_values = [round(weekly_profit[w], 2) for w in week_labels]
 
-    # Máximo y mínimo de ganancia semanal (para el dashboard)
+    # Máximo y mínimo de ganancia semanal
     if weekly_profit:
         max_weekly_profit = max(weekly_profit.values())
         min_weekly_profit = min(weekly_profit.values())
@@ -864,8 +903,9 @@ def dashboard():
         min_weekly_profit=min_weekly_profit,
     )
 
+
 # -----------------------------------------------------------------------------
-# API producto (por si quieres pedirlo desde JS)
+# API producto
 # -----------------------------------------------------------------------------
 
 
@@ -886,7 +926,7 @@ def api_product(product_id):
 
 
 # -----------------------------------------------------------------------------
-# Exportar datos a Excel (ejemplo simple, ajusta si ocupas)
+# Exportar datos a Excel
 # -----------------------------------------------------------------------------
 
 
@@ -894,7 +934,11 @@ def api_product(product_id):
 @login_required
 def export_sales():
     user = current_user()
-    sales_list = Sale.query.filter_by(user_id=user.id).order_by(Sale.date.asc()).all()
+    sales_list = (
+        Sale.query.filter_by(user_id=user.id)
+        .order_by(Sale.date.asc())
+        .all()
+    )
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -939,7 +983,10 @@ def export_sales():
         output,
         as_attachment=True,
         download_name="ventas.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        mimetype=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        ),
     )
 
 
@@ -949,4 +996,8 @@ def export_sales():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(
+        debug=True,
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+    )
