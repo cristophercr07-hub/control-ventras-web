@@ -114,6 +114,34 @@ def require_login():
         return redirect(url_for("login"))
 
 
+# Helpers globales para Jinja (números bonitos, fecha, zip, usuario actual)
+@app.context_processor
+def inject_globals():
+    def format_num(value):
+        try:
+            # Formato latino: separador miles = ".", decimales = ","
+            num = float(value)
+            txt = f"{num:,.2f}"
+            txt = txt.replace(",", "X").replace(".", ",").replace("X", ".")
+            return txt
+        except Exception:
+            return value
+
+    def current_user():
+        uid = session.get("user_id")
+        if not uid:
+            return None
+        return User.query.get(uid)
+
+    return dict(
+        current_user=current_user,
+        format_num=format_num,
+        date=datetime.date,
+        datetime=datetime.datetime,
+        zip=zip,
+    )
+
+
 # ---------------------------------------------------------
 # CREACIÓN DE BD + ADMIN POR DEFECTO
 # ---------------------------------------------------------
@@ -382,7 +410,7 @@ def apply_sales_filters(query, name_filter, status_filter, d_from, d_to):
 
 
 @app.route("/sales", methods=["GET", "POST"])
-def sales_page():
+def sales():
     if not current_user_id():
         return redirect(url_for("login"))
 
@@ -455,12 +483,12 @@ def sales_page():
     sales_query = Sale.query.filter_by(user_id=current_user_id())
     sales_query = apply_sales_filters(sales_query, filter_name, filter_status, d_from, d_to)
 
-    sales = sales_query.order_by(Sale.date.desc(), Sale.id.desc()).all()
+    sales_list = sales_query.order_by(Sale.date.desc(), Sale.id.desc()).all()
 
-    total_monto = sum(s.total for s in sales)
-    total_ganancia = sum(s.profit for s in sales)
-    total_pagado = sum(s.total for s in sales if s.status == "Pagado")
-    total_pendiente = sum(s.pending_amount for s in sales if s.status == "Pendiente")
+    total_monto = sum(s.total for s in sales_list)
+    total_ganancia = sum(s.profit for s in sales_list)
+    total_pagado = sum(s.total for s in sales_list if s.status == "Pagado")
+    total_pendiente = sum(s.pending_amount for s in sales_list if s.status == "Pendiente")
 
     products = Product.query.filter_by(user_id=current_user_id()).order_by(Product.name).all()
 
@@ -468,7 +496,7 @@ def sales_page():
         "ventas.html",
         error=error,
         success=success,
-        sales=sales,
+        sales=sales_list,
         products=products,
 
         filter_name=filter_name,
@@ -490,11 +518,11 @@ def delete_sale(sale_id):
 
     s = Sale.query.get_or_404(sale_id)
     if s.user_id != current_user_id() and not session.get("is_admin"):
-        return redirect(url_for("sales_page"))
+        return redirect(url_for("sales"))
 
     db.session.delete(s)
     db.session.commit()
-    return redirect(url_for("sales_page", success="Venta eliminada correctamente."))
+    return redirect(url_for("sales", success="Venta eliminada correctamente."))
 
 
 @app.route("/sales/export")
@@ -513,10 +541,10 @@ def sales_export():
     query = Sale.query.filter_by(user_id=current_user_id())
     query = apply_sales_filters(query, filter_name, filter_status, d_from, d_to)
 
-    sales = query.order_by(Sale.date.asc()).all()
+    sales_list = query.order_by(Sale.date.asc()).all()
 
     rows = []
-    for s in sales:
+    for s in sales_list:
         rows.append({
             "Fecha": s.date.isoformat(),
             "Cliente": s.name,
@@ -540,10 +568,12 @@ def sales_export():
         df.to_excel(writer, index=False, sheet_name="Ventas")
     output.seek(0)
 
-    return send_file(output,
-                     as_attachment=True,
-                     download_name="ventas.xlsx",
-                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="ventas.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 # ---------------------------------------------------------
@@ -607,10 +637,10 @@ def flujo():
         exp_query = exp_query.filter(Expense.category == category_filter)
 
     expenses = exp_query.order_by(Expense.date.desc(), Expense.id.desc()).all()
-    sales = sales_query.all()
+    sales_list = sales_query.all()
 
-    total_ingresos = sum(s.total for s in sales)
-    total_ganancia = sum(s.profit for s in sales)
+    total_ingresos = sum(s.total for s in sales_list)
+    total_ganancia = sum(s.profit for s in sales_list)
 
     total_gastos = sum(e.amount for e in expenses if e.category == "Gasto")
     total_reinv = sum(e.amount for e in expenses if e.category == "Reinversión")
@@ -683,10 +713,12 @@ def flujo_export():
         df.to_excel(writer, index=False, sheet_name="Flujo")
     output.seek(0)
 
-    return send_file(output,
-                     as_attachment=True,
-                     download_name="flujo.xlsx",
-                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="flujo.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 # ---------------------------------------------------------
@@ -731,42 +763,49 @@ def dashboard():
     if d_to:
         sales_query = sales_query.filter(Sale.date <= d_to)
 
-    sales = sales_query.order_by(Sale.date).all()
+    sales_list = sales_query.order_by(Sale.date).all()
 
     # TOP PRODUCTOS
     profit_by_product = defaultdict(float)
-    for s in sales:
+    for s in sales_list:
         profit_by_product[s.product] += s.profit
 
-    top_items = sorted(profit_by_product.items(),
-                       key=lambda x: x[1],
-                       reverse=True)[:5]
+    top_items = sorted(
+        profit_by_product.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:5]
 
     top_labels = [name for name, _ in top_items]
     top_values = [value for _, value in top_items]
 
     # GANANCIA POR SEMANA
     profit_by_week = defaultdict(float)
-    for s in sales:
+    for s in sales_list:
         if not s.date:
             continue
         y, w, _ = s.date.isocalendar()
         key = f"{y}-W{w:02d}"
         profit_by_week[key] += s.profit
 
-    weeks_sorted = sorted(profit_by_week.items(),
-                          key=lambda x: x[0])
+    weeks_sorted = sorted(profit_by_week.items(), key=lambda x: x[0])
 
     week_labels = [k for k, _ in weeks_sorted]
     week_values = [round(v, 2) for _, v in weeks_sorted]
 
     # TOTAL GANANCIA
-    total_ganancia = sum(s.profit for s in sales)
+    total_ganancia = sum(s.profit for s in sales_list)
 
     # PAGOS VENCIDOS Y PRÓXIMOS
     today = datetime.date.today()
-    overdue_sales = [s for s in sales if s.status == "Pendiente" and s.due_date and s.due_date < today]
-    upcoming_sales = [s for s in sales if s.status == "Pendiente" and s.due_date and s.due_date >= today]
+    overdue_sales = [
+        s for s in sales_list
+        if s.status == "Pendiente" and s.due_date and s.due_date < today
+    ]
+    upcoming_sales = [
+        s for s in sales_list
+        if s.status == "Pendiente" and s.due_date and s.due_date >= today
+    ]
 
     overdue_total = sum(s.pending_amount for s in overdue_sales)
     overdue_count = len(overdue_sales)
