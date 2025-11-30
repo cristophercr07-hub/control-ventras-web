@@ -2,107 +2,140 @@
 {% block title %}Clientes - Control de Ventas{% endblock %}
 
 {% block content %}
+
+{% if error %}
+<div class="alert alert-danger py-2 mb-3">{{ error }}</div>
+{% endif %}
+{% if success %}
+<div class="alert alert-success py-2 mb-3">{{ success }}</div>
+{% endif %}
+
 <div class="row g-3">
-    <div class="col-12 col-lg-7">
-        <div class="card-matrix p-3">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <div class="small-label mb-1">Base de datos</div>
-                    <h5 class="fw-narrow mb-0">Clientes</h5>
-                </div>
-                <form class="d-flex gap-2" method="get">
-                    <input type="text" name="q" class="form-control form-control-sm input-chip"
-                           placeholder="Buscar..." value="{{ q }}">
-                    <button class="btn btn-outline-accent btn-sm">
-                        <i class="bi bi-search"></i>
-                    </button>
-                </form>
-            </div>
-
-            <div class="table-responsive">
-                <table class="table table-matrix mb-0 align-middle">
-                    <thead>
-                        <tr>
-                            <th>Nombre</th>
-                            <th>Identificador</th>
-                            <th>Teléfono</th>
-                            <th>Email</th>
-                            <th class="text-end">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for c in clients %}
-                        <tr>
-                            <td>{{ c.name }}</td>
-                            <td>{{ c.identifier }}</td>
-                            <td>{{ c.phone }}</td>
-                            <td>{{ c.email }}</td>
-                            <td class="text-end">
-                                <form method="post" action="{{ url_for('delete_client', client_id=c.id) }}"
-                                      onsubmit="return confirm('¿Eliminar este cliente?');">
-                                    <button class="btn btn-outline-danger btn-sm">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                        {% if not clients %}
-                        <tr>
-                            <td colspan="5" class="text-center text-secondary-custom small">
-                                Aún no has registrado clientes.
-                            </td>
-                        </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-12 col-lg-5">
-        <div class="card-matrix-soft p-3">
-            <div class="small-label mb-1">Nuevo cliente</div>
-            <h6 class="fw-narrow mb-3">Agregar cliente</h6>
-
-            {% if error %}
-            <div class="alert alert-soft-danger py-2 px-3 mb-2 small">
-                <i class="bi bi-exclamation-triangle me-1"></i> {{ error }}
-            </div>
-            {% endif %}
-
-            <form method="post" action="{{ url_for('add_client') }}">
-                <div class="mb-2">
-                    <label class="small-label mb-1">Nombre</label>
-                    <input type="text" name="name" class="form-control input-chip" required>
-                </div>
-                <div class="mb-2">
-                    <label class="small-label mb-1">Identificador</label>
-                    <input type="text" name="identifier" class="form-control input-chip">
-                </div>
-                <div class="mb-2">
-                    <label class="small-label mb-1">Teléfono</label>
-                    <input type="text" name="phone" class="form-control input-chip">
-                </div>
-                <div class="mb-2">
-                    <label class="small-label mb-1">Email</label>
-                    <input type="email" name="email" class="form-control input-chip">
-                </div>
-                <div class="mb-2">
-                    <label class="small-label mb-1">Dirección</label>
-                    <input type="text" name="address" class="form-control input-chip">
+    <div class="col-12 col-lg-4">
+        <div class="card p-4 h-100">
+            <h2 class="mb-3 text-accent">Nuevo cliente</h2>
+            <p class="text-secondary-custom mb-3">
+                Registra los datos básicos de tus clientes para tener un pequeño CRM y
+                utilizarlos como referencia en tus ventas.
+            </p>
+            <form method="post" action="{{ url_for('clientes') }}">
+                <div class="mb-3">
+                    <label class="form-label text-secondary-custom">Nombre completo</label>
+                    <input type="text" name="name" class="form-control" required placeholder="Ej: Juan Pérez">
                 </div>
                 <div class="mb-3">
-                    <label class="small-label mb-1">Notas</label>
-                    <textarea name="notes" rows="2" class="form-control"></textarea>
+                    <label class="form-label text-secondary-custom">Teléfono</label>
+                    <input type="text" name="phone" class="form-control" placeholder="Ej: +506 8888-8888">
                 </div>
-                <div class="text-end">
-                    <button class="btn btn-accent btn-sm">
-                        Guardar cliente
-                    </button>
+                <div class="mb-3">
+                    <label class="form-label text-secondary-custom">Correo electrónico</label>
+                    <input type="email" name="email" class="form-control" placeholder="Ej: cliente@correo.com">
                 </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary-custom">Dirección</label>
+                    <input type="text" name="address" class="form-control" placeholder="Barrio, provincia, país">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary-custom">Notas</label>
+                    <textarea name="notes" class="form-control" rows="2" placeholder="Preferencias, referencias, etc."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-person-plus me-1"></i> Guardar cliente
+                </button>
             </form>
         </div>
     </div>
+
+    <div class="col-12 col-lg-8">
+        <div class="card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h2 class="mb-1 text-accent">Listado de clientes</h2>
+                    <p class="text-secondary-custom mb-0">
+                        Clientes registrados para el usuario actual.
+                    </p>
+                </div>
+            </div>
+
+            {% if clients and clients|length > 0 %}
+                <div class="table-responsive d-none d-md-block">
+                    <table class="table table-dark table-striped table-sm align-middle">
+                        <thead>
+                            <tr class="text-center">
+                                <th>Nombre</th>
+                                <th>Teléfono</th>
+                                <th>Correo</th>
+                                <th>Dirección</th>
+                                <th>Notas</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in clients %}
+                            <tr>
+                                <td class="text-center">{{ c.name }}</td>
+                                <td class="text-center">{{ c.phone or '-' }}</td>
+                                <td class="text-center">{{ c.email or '-' }}</td>
+                                <td class="text-center">{{ c.address or '-' }}</td>
+                                <td class="text-center">{{ c.notes or '-' }}</td>
+                                <td class="text-center">
+                                    <a href="{{ url_for('clientes_edit', client_id=c.id) }}"
+                                       class="btn btn-sm btn-outline-light me-1">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form method="post"
+                                          action="{{ url_for('clientes_delete', client_id=c.id) }}"
+                                          class="d-inline">
+                                        <button type="submit"
+                                                class="btn btn-sm btn-outline-danger"
+                                                onclick="return doubleConfirm('¿Eliminar este cliente?', 'Esta acción no se puede deshacer. ¿Confirmas?');">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-block d-md-none">
+                    {% for c in clients %}
+                    <div class="border rounded-3 p-3 mb-2">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <strong>{{ c.name }}</strong>
+                            <div>
+                                <a href="{{ url_for('clientes_edit', client_id=c.id) }}"
+                                   class="btn btn-sm btn-outline-light me-1">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="post"
+                                      action="{{ url_for('clientes_delete', client_id=c.id) }}"
+                                      class="d-inline">
+                                    <button type="submit"
+                                            class="btn btn-sm btn-outline-danger"
+                                            onclick="return doubleConfirm('¿Eliminar este cliente?', 'Esta acción no se puede deshacer. ¿Confirmas?');">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="text-secondary-custom">
+                            <div><i class="bi bi-telephone me-1"></i> {{ c.phone or '-' }}</div>
+                            <div><i class="bi bi-envelope me-1"></i> {{ c.email or '-' }}</div>
+                            <div><i class="bi bi-geo-alt me-1"></i> {{ c.address or '-' }}</div>
+                            <div><i class="bi bi-journal-text me-1"></i> {{ c.notes or '-' }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-secondary-custom mb-0 text-center">
+                    Aún no hay clientes registrados.
+                </p>
+            {% endif %}
+        </div>
+    </div>
 </div>
+
 {% endblock %}
