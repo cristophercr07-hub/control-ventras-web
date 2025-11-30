@@ -36,7 +36,14 @@
 
                     <!-- Cliente (selector + input) -->
                     <div class="col-12 col-md-8">
-                        <label class="form-label text-secondary-custom">Cliente</label>
+                        <label class="form-label text-secondary-custom d-flex justify-content-between align-items-center">
+                            <span>Cliente</span>
+                            <!-- ATAJO: NUEVO CLIENTE -->
+                            <a href="/clientes" class="link-offset-2 link-underline-opacity-0 link-underline-opacity-75-hover text-secondary-custom">
+                                <i class="bi bi-person-plus me-1"></i>Nuevo cliente
+                            </a>
+                        </label>
+
                         <div class="input-group">
                             <select
                                 id="client_select"
@@ -66,7 +73,14 @@
 
                     <!-- Producto (selector + input) -->
                     <div class="col-12">
-                        <label class="form-label text-secondary-custom">Producto</label>
+                        <label class="form-label text-secondary-custom d-flex justify-content-between align-items-center">
+                            <span>Producto</span>
+                            <!-- ATAJO: NUEVO PRODUCTO -->
+                            <a href="{{ url_for('productos') }}" class="link-offset-2 link-underline-opacity-0 link-underline-opacity-75-hover text-secondary-custom">
+                                <i class="bi bi-plus-circle me-1"></i>Nuevo producto
+                            </a>
+                        </label>
+
                         <div class="input-group">
                             <select
                                 id="product_select"
@@ -398,8 +412,8 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Si el estado cambia a Pagado → monto pagado = 0 o completo, y limpia fecha vencimiento
-    if (statusSelect && amountPaidInput && priceInput && dueDateInput) {
+    // Si el estado cambia a Pagado → limpiamos fecha de vencimiento
+    if (statusSelect && dueDateInput) {
         statusSelect.addEventListener("change", function () {
             const status = this.value;
             if (status === "Pagado") {
