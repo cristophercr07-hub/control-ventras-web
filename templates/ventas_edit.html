@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Editar Cliente - Control de Ventas{% endblock %}
+
+{% block content %}
+
+{% if error %}
+<div class="alert alert-danger py-2 mb-3">{{ error }}</div>
+{% endif %}
+{% if success %}
+<div class="alert alert-success py-2 mb-3">{{ success }}</div>
+{% endif %}
+
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="card p-4">
+            <h2 class="mb-3 text-accent">Editar cliente</h2>
+            <p class="text-secondary-custom mb-3">
+                Actualiza la información del cliente y guarda los cambios.
+            </p>
+
+            <form method="post" action="{{ url_for('clientes_edit', client_id=client.id) }}">
+                <div class="mb-3">
+                    <label class="form-label text-secondary-custom">Nombre completo</label>
+                    <input type="text" name="name" class="form-control" required value="{{ client.name }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary-custom">Teléfono</label>
+                    <input type="text" name="phone" class="form-control" value="{{ client.phone or '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary-custom">Correo electrónico</label>
+                    <input type="email" name="email" class="form-control" value="{{ client.email or '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary-custom">Dirección</label>
+                    <input type="text" name="address" class="form-control" value="{{ client.address or '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary-custom">Notas</label>
+                    <textarea name="notes" class="form-control" rows="2">{{ client.notes or '' }}</textarea>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('clientes') }}" class="btn btn-outline-light">
+                        <i class="bi bi-arrow-left me-1"></i> Volver
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save me-1"></i> Guardar cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
