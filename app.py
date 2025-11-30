@@ -156,6 +156,15 @@ def format_num_filter(value):
         return value
 
 
+# Registrar zip como filtro de Jinja para usarlo como |zip
+@app.template_filter("zip")
+def zip_filter(a, b):
+    try:
+        return list(zip(a, b))
+    except Exception:
+        return []
+
+
 # ---------------------------------------------------------
 # CREACIÓN BD + ADMIN
 # ---------------------------------------------------------
