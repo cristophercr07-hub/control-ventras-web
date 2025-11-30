@@ -588,7 +588,34 @@ def ventas_export():
         download_name="ventas_filtradas.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+    query = Sale.query.filter_by(user_id=current_user_id())
+    query = apply_sales_filters(query, filter_name, filter_status, date_from, date_to)
+    sales = query.order_by(Sale.date.desc(), Sale.id.desc()).all()
 
+    total_monto = sum(float(s.total or 0) for s in sales)
+    total_ganancia = sum(float(s.profit or 0) for s in sales)
+    total_pagado = sum(float(s.total or 0) for s in sales if s.status == "Pagado")
+    total_pendiente = sum(float(s.pending_amount or 0) for s in sales if s.status == "Pendiente")
+
+    products = Product.query.filter_by(user_id=current_user_id()).order_by(Product.name).all()
+    clients = Client.query.filter_by(user_id=current_user_id()).order_by(Client.name).all()
+
+    return render_template(
+        "ventas.html",
+        error=error,
+        success=success,
+        sales=sales,
+        products=products,
+        clients=clients,
+        filter_name=filter_name,
+        filter_status=filter_status,
+        date_from=date_from,
+        date_to=date_to,
+        total_monto=total_monto,
+        total_ganancia=total_ganancia,
+        total_pagado=total_pagado,
+        total_pendiente=total_pendiente,
+    )
 
 # ---------------------------------------------------------
 # CONTROL DE FLUJO
@@ -844,3 +871,4 @@ def dashboard():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
