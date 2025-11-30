@@ -289,11 +289,6 @@ def productos():
                 if margin < MIN_MARGIN_PERCENT:
                     margin = MIN_MARGIN_PERCENT
 
-                if cost <= 0:
-                    raise ValueError("El costo debe ser mayor que cero.")
-                if quantity <= 0:
-                    raise ValueError("La cantidad debe ser mayor que cero.")
-
                 price_result = cost * (1 + margin / 100.0)
                 profit_unit = price_result - cost
                 profit_total = profit_unit * quantity
@@ -958,4 +953,5 @@ def dashboard():
 if __name__ == "__main__":
     # Para desarrollo local; en Render usas gunicorn
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
 
