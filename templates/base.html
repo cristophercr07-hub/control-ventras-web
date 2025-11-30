@@ -166,6 +166,12 @@
                            href="{{ url_for('ventas') }}">
                             Ventas
                         </a>
+                   </li>
+                   <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'clientes' %}active text-accent{% else %}text-secondary-custom{% endif %}"
+                           href="{{ url_for('clientes') }}">
+                            Clientes
+                        </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'productos' %}active text-accent{% else %}text-secondary-custom{% endif %}"
@@ -294,3 +300,4 @@ function doubleConfirm(msg1, msg2) {
 {% endblock %}
 </body>
 </html>
+
