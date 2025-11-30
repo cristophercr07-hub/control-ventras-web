@@ -113,7 +113,10 @@ def require_login():
         return redirect(url_for("login"))
 
 
-# Helpers globales Jinja
+# ---------------------------------------------------------
+# HELPERS GLOBALES JINJA
+# ---------------------------------------------------------
+
 @app.context_processor
 def inject_globals():
     def format_num(value):
@@ -139,6 +142,18 @@ def inject_globals():
         datetime=datetime.datetime,
         zip=zip,
     )
+
+
+# Registrar format_num como filtro de Jinja para usarlo como |format_num
+@app.template_filter("format_num")
+def format_num_filter(value):
+    try:
+        num = float(value)
+        txt = f"{num:,.2f}"
+        txt = txt.replace(",", "X").replace(".", ",").replace("X", ".")
+        return txt
+    except Exception:
+        return value
 
 
 # ---------------------------------------------------------
