@@ -23,6 +23,7 @@ import openpyxl
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key")
 
+# Compatibilidad con Render (postgres:// → postgresql://)
 database_url = os.environ.get("DATABASE_URL", "sqlite:///app.db")
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -142,7 +143,7 @@ class Expense(db.Model):
 
 
 # -----------------------------------------------------------------------------
-# DB bootstrap
+# DB bootstrap (se ejecuta al arrancar la app)
 # -----------------------------------------------------------------------------
 
 
@@ -159,6 +160,22 @@ def bootstrap_db():
 
 
 bootstrap_db()
+
+
+# Ruta manual para forzar la creación de tablas en la BD actual (Render)
+@app.route("/init-db-force")
+def init_db_force():
+    """Crea todas las tablas y un usuario admin/admin si no existe."""
+    with app.app_context():
+        db.create_all()
+        admin = User.query.filter_by(username="admin").first()
+        if not admin:
+            admin = User(username="admin", is_admin=True)
+            admin.set_password("admin")
+            db.session.add(admin)
+            db.session.commit()
+    return "Base de datos inicializada. Usuario admin/admin creado si no existía."
+
 
 # -----------------------------------------------------------------------------
 # Helpers & decorators
@@ -740,7 +757,7 @@ def delete_expense(expense_id):
 
 
 # -----------------------------------------------------------------------------
-# Dashboard (con max_weekly_profit y min_weekly_profit)
+# Dashboard
 # -----------------------------------------------------------------------------
 
 
