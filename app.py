@@ -162,9 +162,9 @@ def bootstrap_db():
 bootstrap_db()
 
 
-# Ruta manual para crear tablas (por si se ocupa)
 @app.route("/init-db-force")
 def init_db_force():
+    """Crea tablas si faltan y asegura usuario admin/admin."""
     with app.app_context():
         db.create_all()
         admin = User.query.filter_by(username="admin").first()
@@ -176,7 +176,6 @@ def init_db_force():
     return "Base de datos inicializada. Usuario admin/admin creado si no existía."
 
 
-# Ruta para resetear completamente la BD (borra todo y recrea)
 @app.route("/reset-db-hard")
 def reset_db_hard():
     """
@@ -211,7 +210,6 @@ def current_user():
     return User.query.get(uid)
 
 
-# Hacer disponible current_user() en todos los templates Jinja
 @app.context_processor
 def inject_current_user():
     return dict(current_user=current_user)
@@ -256,7 +254,6 @@ def format_num(value) -> str:
 app.jinja_env.filters["format_num"] = format_num
 
 
-# Filtro zip para usar en Jinja (week_labels|zip(week_values), etc.)
 def jinja_zip(a, b):
     return zip(a, b)
 
@@ -543,6 +540,9 @@ def sales():
     clients_list = Client.query.filter_by(user_id=user.id).order_by(Client.name.asc()).all()
     products_list = Product.query.filter_by(user_id=user.id).order_by(Product.name.asc()).all()
 
+    # Para el input de fecha por defecto en el formulario
+    today_str = date.today().isoformat()
+
     return render_template(
         "ventas.html",
         sales=sales_list,
@@ -553,6 +553,7 @@ def sales():
         status=status,
         clients=clients_list,
         products=products_list,
+        today_str=today_str,
     )
 
 
@@ -878,7 +879,6 @@ def dashboard():
     week_labels = sorted(weekly_profit.keys())
     week_values = [round(weekly_profit[w], 2) for w in week_labels]
 
-    # Máximo y mínimo de ganancia semanal
     if weekly_profit:
         max_weekly_profit = max(weekly_profit.values())
         min_weekly_profit = min(weekly_profit.values())
@@ -886,7 +886,6 @@ def dashboard():
         max_weekly_profit = 0.0
         min_weekly_profit = 0.0
 
-    # Ganancia por usuario (solo el actual)
     user_profit = {user.username: total_ganancia}
     user_labels = list(user_profit.keys())
     user_values = [round(v, 2) for v in user_profit.values()]
