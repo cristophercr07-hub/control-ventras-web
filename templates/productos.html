@@ -15,9 +15,9 @@
 <div class="row">
     <div class="col-12">
         <div class="card p-4 mb-4">
-            <h2 class="mb-3 text-accent">Calculadora de precios</h2>
+            <h2 class="mb-3 text-accent text-center">Calculadora de precios</h2>
             <p class="text-secondary-custom text-center mb-3">
-                Ingresa el <b>costo</b>, el <b>margen deseado</b> (mínimo {{ "%.2f"|format(min_margin) }}%)
+                Ingresa el <b>costo</b>, el <b>margen deseado</b> (puede ser desde 0&nbsp;% en adelante)
                 y la cantidad. La calculadora sugerirá un precio y mostrará la utilidad. Puedes
                 guardar el resultado en el catálogo para usarlo luego en la pestaña de Ventas.
             </p>
@@ -47,7 +47,8 @@
                     </div>
                     <div class="col-md-2 col-6">
                         <label class="form-label text-secondary-custom">
-                            Margen (%)<br><span class="text-secondary-custom">(mín. {{ "%.2f"|format(min_margin) }}%)</span>
+                            Margen (%)<br>
+                            <span class="text-secondary-custom">(puede ser 0&nbsp;% o más)</span>
                         </label>
                         <input
                             type="number"
@@ -126,7 +127,7 @@
 <div class="row">
     <div class="col-12">
         <div class="card p-4">
-            <h2 class="mb-3 text-accent">Catálogo de productos</h2>
+            <h2 class="mb-3 text-accent text-center">Catálogo de productos</h2>
             <p class="text-secondary-custom text-center mb-3">
                 Aquí gestionas los productos que se usan como plantilla en las ventas:
                 nombre, costo, precio sugerido y margen estimado. Eliminar un producto no
