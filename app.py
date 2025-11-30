@@ -143,7 +143,7 @@ class Expense(db.Model):
 
 
 # -----------------------------------------------------------------------------
-# DB bootstrap (se ejecuta al arrancar la app)
+# DB bootstrap
 # -----------------------------------------------------------------------------
 
 
@@ -162,10 +162,9 @@ def bootstrap_db():
 bootstrap_db()
 
 
-# Ruta manual para forzar la creación de tablas en la BD actual (Render)
+# Ruta manual para crear tablas (por si se ocupa)
 @app.route("/init-db-force")
 def init_db_force():
-    """Crea todas las tablas y un usuario admin/admin si no existe."""
     with app.app_context():
         db.create_all()
         admin = User.query.filter_by(username="admin").first()
@@ -175,6 +174,29 @@ def init_db_force():
             db.session.add(admin)
             db.session.commit()
     return "Base de datos inicializada. Usuario admin/admin creado si no existía."
+
+
+# Ruta para resetear completamente la BD (borra todo y recrea)
+@app.route("/reset-db-hard")
+def reset_db_hard():
+    """
+    RESETEA COMPLETAMENTE la base de datos:
+    - Elimina todas las tablas
+    - Crea todas las tablas de nuevo
+    - Crea usuario admin/admin
+    """
+    with app.app_context():
+        db.drop_all()
+        db.create_all()
+
+        admin = User.query.filter_by(username="admin").first()
+        if not admin:
+            admin = User(username="admin", is_admin=True)
+            admin.set_password("admin")
+            db.session.add(admin)
+            db.session.commit()
+
+    return "RESET COMPLETO de BD realizado. Usuario admin/admin creado."
 
 
 # -----------------------------------------------------------------------------
@@ -232,6 +254,14 @@ def format_num(value) -> str:
 
 
 app.jinja_env.filters["format_num"] = format_num
+
+
+# Filtro zip para usar en Jinja (week_labels|zip(week_values), etc.)
+def jinja_zip(a, b):
+    return zip(a, b)
+
+
+app.jinja_env.filters["zip"] = jinja_zip
 
 # -----------------------------------------------------------------------------
 # Auth
@@ -1018,5 +1048,3 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 5000)),
     )
-
-
