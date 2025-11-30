@@ -38,7 +38,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
 # Margen mínimo de utilidad para la calculadora (7 %)
-MIN_MARGIN_PERCENT = 7.0
+MIN_MARGIN_PERCENT = 0
 
 
 # ---------------------------------------------------------
@@ -958,3 +958,4 @@ def dashboard():
 if __name__ == "__main__":
     # Para desarrollo local; en Render usas gunicorn
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
