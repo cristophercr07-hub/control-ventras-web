@@ -160,6 +160,30 @@ def bootstrap_db():
 
 
 bootstrap_db()
+@app.route("/reset-db-hard")
+def reset_db_hard():
+    """
+    RESETEA COMPLETAMENTE la base de datos:
+    - Elimina todas las tablas
+    - Crea todas las tablas de nuevo
+    - Crea usuario admin/admin
+
+    ADVERTENCIA: PIERDE TODOS LOS DATOS.
+    """
+    with app.app_context():
+        # Borra todo el esquema
+        db.drop_all()
+        db.create_all()
+
+        # Crea usuario admin si no existe
+        admin = User.query.filter_by(username="admin").first()
+        if not admin:
+            admin = User(username="admin", is_admin=True)
+            admin.set_password("admin")
+            db.session.add(admin)
+            db.session.commit()
+
+    return "RESET COMPLETO de BD realizado. Usuario admin/admin creado."
 
 
 # Ruta manual para forzar la creación de tablas en la BD actual (Render)
@@ -1018,3 +1042,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 5000)),
     )
+
