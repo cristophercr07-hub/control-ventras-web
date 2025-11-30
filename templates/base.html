@@ -92,8 +92,25 @@
             background-color: var(--bg-card-soft);
         }
 
+        /* Textos dentro de tarjetas con marco suave */
         .card p {
-            margin-bottom: 0.4rem;
+            border: 1px solid var(--border-soft);
+            border-radius: 0.6rem;
+            padding: 0.35rem 0.6rem;
+            background-color: #020617;
+            margin-bottom: 0.45rem;
+        }
+
+        /* Métricas en “pastilla” (opcional, ya usada en dashboard si quieres) */
+        .metric-pill {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            border: 1px solid var(--border-soft);
+            background-color: #020617;
+            color: var(--accent);
+            font-weight: 500;
+            font-variant-numeric: tabular-nums;
         }
 
         /* Textos */
@@ -216,6 +233,12 @@
             background-color: rgba(248, 113, 113, 0.08);
             border-color: rgba(248, 113, 113, 0.4);
             color: #fecaca;
+        }
+
+        .alert-success {
+            background-color: rgba(22, 163, 74, 0.15);
+            border-color: rgba(22, 163, 74, 0.5);
+            color: #bbf7d0;
         }
 
         .alert-warning {
