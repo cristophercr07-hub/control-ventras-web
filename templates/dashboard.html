@@ -5,543 +5,212 @@
 
 <div class="row mb-4">
     <div class="col-12">
-        <div class="card p-4">
+        <div class="card-matrix p-4">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
                 <div>
-                    <h2 class="mb-1 text-accent">Dashboard de rendimiento</h2>
+                    <div class="small-label mb-1">Resumen general</div>
+                    <h4 class="fw-narrow mb-1">Panel de control</h4>
                     <p class="text-secondary-custom mb-0">
-                        Visualiza las principales métricas de tus ventas y utilidades.
+                        Filtra por rango de fechas o usa los atajos rápidos para analizar tu desempeño.
                     </p>
                 </div>
-                <form method="get" action="{{ url_for('dashboard') }}" class="mt-3 mt-md-0">
-                    <div class="row g-2 align-items-end">
-                        <div class="col-auto">
-                            <label class="form-label text-secondary-custom mb-1">Desde</label>
-                            <input type="date" name="date_from" class="form-control form-control-sm"
-                                   value="{{ date_from or '' }}">
-                        </div>
-                        <div class="col-auto">
-                            <label class="form-label text-secondary-custom mb-1">Hasta</label>
-                            <input type="date" name="date_to" class="form-control form-control-sm"
-                                   value="{{ date_to or '' }}">
-                        </div>
-                        <div class="col-auto">
-                            <label class="form-label text-secondary-custom mb-1">Rango rápido</label>
-                            <select name="preset" class="form-select form-select-sm">
-                                <option value="">Personalizado</option>
-                                <option value="week">Últimos 7 días</option>
-                                <option value="4weeks">Últimas 4 semanas</option>
-                                <option value="month">Este mes</option>
-                                <option value="year">Este año</option>
-                            </select>
-                        </div>
-                        <div class="col-auto">
-                            <button type="submit" class="btn btn-primary btn-sm mt-3 mt-md-0">
-                                <i class="bi bi-bar-chart-line me-1"></i> Aplicar
-                            </button>
-                        </div>
+                <form method="get" class="mt-3 mt-md-0 d-flex flex-wrap gap-2">
+                    <div class="d-flex gap-2">
+                        <input type="date" name="date_from" class="form-control form-control-sm"
+                               value="{{ date_from }}">
+                        <input type="date" name="date_to" class="form-control form-control-sm"
+                               value="{{ date_to }}">
                     </div>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="submit" name="preset" value="week" class="btn btn-outline-accent">7 días</button>
+                        <button type="submit" name="preset" value="4weeks" class="btn btn-outline-accent">4 semanas</button>
+                        <button type="submit" name="preset" value="month" class="btn btn-outline-accent">Mes</button>
+                        <button type="submit" name="preset" value="year" class="btn btn-outline-accent">Año</button>
+                    </div>
+                    <button type="submit" class="btn btn-accent btn-sm">
+                        <i class="bi bi-funnel me-1"></i>Aplicar
+                    </button>
                 </form>
             </div>
 
-            <!-- ALERTAS -->
-            <div class="mb-3">
-                <h5 class="text-accent mb-2">Alertas inteligentes</h5>
-                {% if alerts is defined and alerts and alerts|length > 0 %}
-                    {% for a in alerts %}
-                        {% if a.level == 'danger' %}
-                            {% set alert_class = 'alert-danger border-danger' %}
-                        {% elif a.level == 'warning' %}
-                            {% set alert_class = 'alert-warning border-warning text-dark' %}
-                        {% else %}
-                            {% set alert_class = 'alert-info border-info' %}
-                        {% endif %}
-                        <div class="alert {{ alert_class }} py-2 px-3 mb-2">
-                            <strong>{{ a.title }}:</strong>
-                            <span>{{ a.message|safe }}</span>
+            {% if alerts %}
+            <div class="row g-2 mb-2">
+                {% for alert in alerts %}
+                <div class="col-12 col-md-6">
+                    <div class="alert {% if alert.level == 'danger' %}alert-soft-danger{% else %}alert-soft-warning{% endif %} py-2 px-3 mb-1">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi {% if alert.level == 'danger' %}bi-exclamation-octagon{% else %}bi-exclamation-triangle{% endif %}"></i>
+                            <div>
+                                <div class="fw-bold small">{{ alert.title }}</div>
+                                <div class="small">{{ alert.message }}</div>
+                            </div>
                         </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="alert alert-success border-success py-2 px-3 mb-2">
-                        <strong>Todo en orden:</strong>
-                        No se han detectado alertas críticas en tu operación reciente.
                     </div>
-                {% endif %}
+                </div>
+                {% endfor %}
             </div>
-
-            <!-- TARJETAS MÉTRICAS -->
-            <div class="row g-3">
-                <div class="col-6 col-md-3">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Ganancia total (periodo)</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ total_ganancia|format_num }}
-                        </h4>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Monto vendido (periodo)</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ total_monto_period|format_num }}
-                        </h4>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Ticket promedio</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ avg_ticket|format_num }}
-                        </h4>
-                        <small class="text-secondary-custom">
-                            {{ total_ventas_period or 0 }} ventas en el periodo
-                        </small>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Utilidad diaria promedio</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ avg_daily_profit|format_num }}
-                        </h4>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TARJETAS DE PAGOS PENDIENTES -->
-            <div class="row g-3 mt-3">
-                <div class="col-6 col-md-3">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Pagos vencidos (₡)</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ overdue_total|format_num }}
-                        </h4>
-                        <small class="text-secondary-custom">
-                            {{ overdue_count }} ventas vencidas
-                        </small>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Pagos próximos 7 días (₡)</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ upcoming_total|format_num }}
-                        </h4>
-                        <small class="text-secondary-custom">
-                            {{ upcoming_count }} ventas próximas
-                        </small>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3 d-none d-md-block">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Semana con mayor ganancia</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ max_weekly_profit|format_num }}
-                        </h4>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3 d-none d-md-block">
-                    <div class="card h-100 p-3 bg-dark border-secondary">
-                        <p class="text-secondary-custom mb-1">Semana con menor ganancia</p>
-                        <h4 class="mb-0 text-accent fw-narrow">
-                            ₡{{ min_weekly_profit|format_num }}
-                        </h4>
-                    </div>
-                </div>
-            </div>
-
+            {% endif %}
         </div>
     </div>
 </div>
 
-<!-- GRÁFICOS -->
-<div class="row g-4">
-    <div class="col-12 col-lg-4">
-        <div class="card p-3 h-100">
-            <h5 class="text-accent text-center mb-2">Top productos por ganancia</h5>
-            <p class="text-secondary-custom text-center mb-2">
-                Productos que más aportan a tu utilidad en el rango seleccionado.
-            </p>
-            <div class="d-flex justify-content-center">
-                <canvas id="topProductsChart" style="max-height:260px;"></canvas>
-            </div>
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card-matrix-soft p-3 h-100">
+            <div class="small-label mb-1">Ganancia neta</div>
+            <h4 class="fw-narrow mb-1 text-accent">₡{{ total_ganancia|format_num }}</h4>
+            <p class="text-secondary-custom mb-0 small">En el período seleccionado</p>
         </div>
     </div>
-
-    <div class="col-12 col-lg-4">
-        <div class="card p-3 h-100">
-            <h5 class="text-accent text-center mb-2">Ganancia por semana</h5>
-            <p class="text-secondary-custom text-center mb-2">
-                Evolución de la utilidad semana a semana (ISO week).
-            </p>
-            <div class="d-flex justify-content-center">
-                <canvas id="weeklyProfitChart" style="max-height:260px;"></canvas>
-            </div>
+    <div class="col-6 col-md-3">
+        <div class="card-matrix-soft p-3 h-100">
+            <div class="small-label mb-1">Ventas totales</div>
+            <h4 class="fw-narrow mb-1">₡{{ total_monto_period|format_num }}</h4>
+            <p class="text-secondary-custom mb-0 small">Facturado en el período</p>
         </div>
     </div>
-
-    <div class="col-12 col-lg-4">
-        <div class="card p-3 h-100">
-            <h5 class="text-accent text-center mb-2">Ganancia por usuario</h5>
-            <p class="text-secondary-custom text-center mb-2">
-                Distribución de la utilidad por usuario del sistema.
-            </p>
-            <div class="d-flex justify-content-center">
-                <canvas id="userProfitChart" style="max-height:260px;"></canvas>
-            </div>
+    <div class="col-6 col-md-3">
+        <div class="card-matrix-soft p-3 h-100">
+            <div class="small-label mb-1">Ticket promedio</div>
+            <h4 class="fw-narrow mb-1">₡{{ avg_ticket|format_num }}</h4>
+            <p class="text-secondary-custom mb-0 small">Por venta</p>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card-matrix-soft p-3 h-100">
+            <div class="small-label mb-1">Ganancia diaria</div>
+            <h4 class="fw-narrow mb-1">₡{{ avg_daily_profit|format_num }}</h4>
+            <p class="text-secondary-custom mb-0 small">Promedio diario</p>
         </div>
     </div>
 </div>
 
-{% endblock %}
-
-{% block extra_scripts %}
-{{ super() }}
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-    if (typeof Chart === "undefined") {
-        console.warn("Chart.js no está cargado. Verifica el script en base.html");
-        return;
-    }
-
-    const topLabels = {{ top_labels | default([]) | tojson }};
-    const topData   = {{ top_values | default([]) | tojson }};
-    const weekLabels = {{ week_labels | default([]) | tojson }};
-    const weekData   = {{ week_values | default([]) | tojson }};
-    const userLabels = {{ user_labels | default([]) | tojson }};
-    const userData   = {{ user_values | default([]) | tojson }};
-
-    const topCtx = document.getElementById('topProductsChart');
-    if (topCtx && topLabels.length > 0) {
-        new Chart(topCtx, {
-            type: 'doughnut',
-            data: {
-                labels: topLabels,
-                datasets: [{ data: topData }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: '#e8f5e9' } }
-                }
-            }
-        });
-    }
-
-    const weekCtx = document.getElementById('weeklyProfitChart');
-    if (weekCtx && weekLabels.length > 0) {
-        new Chart(weekCtx, {
-            type: 'bar',
-            data: {
-                labels: weekLabels,
-                datasets: [{
-                    label: 'Ganancia por semana',
-                    data: weekData
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: {
-                        ticks: { color: '#e8f5e9' },
-                        grid: { display: false }
-                    },
-                    y: {
-                        ticks: { color: '#e8f5e9' },
-                        grid: { color: 'rgba(232,245,233,0.15)' }
-                    }
-                },
-                plugins: {
-                    legend: { labels: { color: '#e8f5e9' } }
-                }
-            }
-        });
-    }
-
-    const userCtx = document.getElementById('userProfitChart');
-    if (userCtx && userLabels.length > 0) {
-        new Chart(userCtx, {
-            type: 'doughnut',
-            data: {
-                labels: userLabels,
-                datasets: [{ data: userData }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: '#e8f5e9' } }
-                }
-            }
-        });
-    }
-});
-</script>
-{% endblock %}
-
-6:TEMPLATES/flujo.html=********************************************************************
-
-
-{% extends "base.html" %}
-{% block title %}Control de Flujo - Control de Ventas{% endblock %}
-
-{% block content %}
-
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card p-4">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card-matrix p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
                 <div>
-                    <h2 class="mb-1 text-accent">Control de Flujo</h2>
-                    <p class="text-secondary-custom mb-0">
-                        Registra gastos y reinversiones, y controla tu flujo de caja y objetivo de ahorro.
-                    </p>
+                    <div class="small-label mb-1">Evolución semanal</div>
+                    <h6 class="mb-0">Ganancia por semana</h6>
                 </div>
             </div>
-
-            {% if error %}
-                <div class="alert alert-danger py-2 px-3 fw-narrow">{{ error }}</div>
-            {% endif %}
-            {% if success %}
-                <div class="alert alert-success py-2 px-3 fw-narrow">{{ success }}</div>
-            {% endif %}
-
-            <div class="row g-3">
-                <!-- FORM MOVIMIENTO -->
-                <div class="col-12 col-lg-6">
-                    <div class="field-box matrix-border h-100">
-                        <div class="field-box-title">Registrar movimiento</div>
-                        <form method="post" class="fw-narrow">
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <label class="small-label mb-1">Fecha</label>
-                                    <input type="date" name="date" class="form-control form-control-sm"
-                                           value="{{ request.form.date or '' }}">
-                                </div>
-                                <div class="col-6">
-                                    <label class="small-label mb-1">Tipo</label>
-                                    <select name="category" class="form-select form-select-sm">
-                                        <option value="Gasto">Gasto</option>
-                                        <option value="Reinversión">Reinversión</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="row g-2 mb-2">
-                                <div class="col-12">
-                                    <label class="small-label mb-1">Descripción</label>
-                                    <input type="text" name="description" class="form-control form-control-sm"
-                                           placeholder="Ej: Compra de insumos, publicidad..."
-                                           value="{{ request.form.description or '' }}">
-                                </div>
-                            </div>
-                            <div class="row g-2 mb-3">
-                                <div class="col-12">
-                                    <label class="small-label mb-1">Monto (₡)</label>
-                                    <input type="number" step="0.01" min="0" name="amount"
-                                           class="form-control form-control-sm text-end"
-                                           value="{{ request.form.amount or '' }}">
-                                </div>
-                            </div>
-                            <div class="d-flex justify-content-end">
-                                <button type="submit" class="btn btn-primary btn-sm">
-                                    <i class="bi bi-plus-circle me-1"></i> Guardar movimiento
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- FILTROS + RESUMEN -->
-                <div class="col-12 col-lg-6">
-                    <div class="field-box h-100">
-                        <div class="field-box-title">Filtros y resumen financiero</div>
-                        <form method="get" class="fw-narrow mb-3">
-                            <div class="row g-2 mb-2">
-                                <div class="col-4">
-                                    <label class="small-label mb-1">Desde</label>
-                                    <input type="date" name="date_from"
-                                           class="form-control form-control-sm"
-                                           value="{{ date_from or '' }}">
-                                </div>
-                                <div class="col-4">
-                                    <label class="small-label mb-1">Hasta</label>
-                                    <input type="date" name="date_to"
-                                           class="form-control form-control-sm"
-                                           value="{{ date_to or '' }}">
-                                </div>
-                                <div class="col-4">
-                                    <label class="small-label mb-1">Tipo</label>
-                                    <select name="category_filter" class="form-select form-select-sm">
-                                        <option value="">Todos</option>
-                                        <option value="Gasto" {% if category_filter == 'Gasto' %}selected{% endif %}>Gasto</option>
-                                        <option value="Reinversión" {% if category_filter == 'Reinversión' %}selected{% endif %}>Reinversión</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="row g-2 mb-2">
-                                <div class="col-12 d-flex justify-content-end gap-2">
-                                    <button type="submit" class="btn btn-primary btn-sm">
-                                        <i class="bi bi-funnel me-1"></i> Filtrar
-                                    </button>
-                                    <a href="{{ url_for('flujo') }}" class="btn btn-outline-light btn-sm">
-                                        Limpiar
-                                    </a>
-                                    <a href="{{ url_for('flujo_export',
-                                                         date_from=date_from,
-                                                         date_to=date_to,
-                                                         category_filter=category_filter) }}"
-                                       class="btn btn-outline-light btn-sm">
-                                        <i class="bi bi-file-earmark-excel me-1"></i> Exportar
-                                    </a>
-                                </div>
-                            </div>
-                        </form>
-
-                        <!-- RESUMEN FINANCIERO -->
-                        <div class="row g-2 fw-narrow mb-3">
-                            <div class="col-6">
-                                <div class="card bg-dark border-secondary h-100">
-                                    <div class="card-body py-2 px-3">
-                                        <div class="small-label mb-1">Ingresos (ventas)</div>
-                                        <div class="h5 mb-0 text-accent">
-                                            ₡{{ total_ingresos|format_num }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="card bg-dark border-secondary h-100">
-                                    <div class="card-body py-2 px-3">
-                                        <div class="small-label mb-1">Ganancia bruta</div>
-                                        <div class="h5 mb-0 text-accent">
-                                            ₡{{ total_ganancia|format_num }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="card bg-dark border-secondary h-100">
-                                    <div class="card-body py-2 px-3">
-                                        <div class="small-label mb-1">Gastos</div>
-                                        <div class="h5 mb-0 text-accent">
-                                            ₡{{ total_gastos|format_num }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="card bg-dark border-secondary h-100">
-                                    <div class="card-body py-2 px-3">
-                                        <div class="small-label mb-1">Reinversión</div>
-                                        <div class="h5 mb-0 text-accent">
-                                            ₡{{ total_reinv|format_num }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="card bg-dark border-secondary h-100">
-                                    <div class="card-body py-2 px-3">
-                                        <div class="small-label mb-1">Egresos totales</div>
-                                        <div class="h5 mb-0 text-accent">
-                                            ₡{{ total_egresos|format_num }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="card bg-dark border-secondary h-100">
-                                    <div class="card-body py-2 px-3">
-                                        <div class="small-label mb-1">Flujo neto</div>
-                                        <div class="h5 mb-0 text-accent">
-                                            ₡{{ neto|format_num }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- OBJETIVO DE AHORRO -->
-                        <div class="field-box mt-2">
-                            <div class="small-label mb-1">Objetivo de ahorro mensual (10% de la ganancia)</div>
-                            <p class="mb-1 text-secondary-custom fw-narrow">
-                                Objetivo: <span class="text-accent fw-bold">₡{{ ahorro_objetivo|format_num }}</span>
-                            </p>
-                            <p class="mb-1 text-secondary-custom fw-narrow">
-                                Ahorro estimado: <span class="text-accent fw-bold">₡{{ ahorro_real|format_num }}</span>
-                            </p>
-                            <p class="mb-0 text-secondary-custom fw-narrow">
-                                Falta para la meta: <span class="text-accent fw-bold">₡{{ ahorro_faltante|format_num }}</span>
-                            </p>
-                            {% if meta_cumplida %}
-                                <div class="alert alert-success border-success py-2 px-3 mt-2 fw-narrow mb-0">
-                                    Meta de ahorro alcanzada o superada en este rango.
-                                </div>
-                            {% else %}
-                                <div class="alert alert-warning border-warning text-dark py-2 px-3 mt-2 fw-narrow mb-0">
-                                    Aún no alcanzas la meta de ahorro. Considera reducir gastos o aumentar margen.
-                                </div>
-                            {% endif %}
-                        </div>
-
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    </div>
-</div>
-
-<!-- TABLA MOVIMIENTOS -->
-<div class="row">
-    <div class="col-12">
-        <div class="card p-3">
-            <h5 class="text-accent mb-3 fw-narrow">Movimientos de flujo</h5>
             <div class="table-responsive">
-                <table class="table table-dark-custom table-sm mb-0">
+                <table class="table table-matrix mb-0 align-middle">
                     <thead>
                         <tr>
-                            <th>Fecha</th>
-                            <th>Descripción</th>
-                            <th>Tipo</th>
-                            <th>Monto (₡)</th>
-                            <th style="width: 60px;">Acciones</th>
+                            <th>Semana</th>
+                            <th class="text-end">Ganancia</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% if expenses and expenses|length > 0 %}
-                            {% for e in expenses %}
-                            <tr>
-                                <td class="text-center">{{ e.date.isoformat() if e.date else '' }}</td>
-                                <td class="text-center">{{ e.description }}</td>
-                                <td class="text-center">{{ e.category }}</td>
-                                <td class="text-end">₡{{ e.amount|format_num }}</td>
-                                <td class="text-center">
-                                    <form method="post"
-                                          action="{{ url_for('delete_expense', expense_id=e.id) }}"
-                                          onsubmit="return doubleConfirm(
-                                              '¿Seguro que deseas eliminar este movimiento?',
-                                              'Esta acción no se puede deshacer. ¿Confirmas que deseas continuar?'
-                                          );">
-                                        <button type="submit" class="btn btn-outline-light btn-sm py-0 px-2">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        {% else %}
-                            <tr>
-                                <td colspan="5" class="text-center text-secondary-custom">
-                                    No hay movimientos registrados con los filtros actuales.
-                                </td>
-                            </tr>
+                        {% for w, v in week_labels|zip(week_values) %}
+                        <tr>
+                            <td>{{ w }}</td>
+                            <td class="text-end">₡{{ v|format_num }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not week_labels %}
+                        <tr>
+                            <td colspan="2" class="text-center text-secondary-custom small">
+                                No hay datos en el rango seleccionado.
+                            </td>
+                        </tr>
                         {% endif %}
                     </tbody>
                 </table>
             </div>
+            <div class="divider-soft my-2"></div>
+            <div class="row text-secondary-custom small">
+                <div class="col-6 col-md-3">
+                    <div class="small-label mb-1">Semana con mayor ganancia</div>
+                    <div class="fw-narrow">
+                        ₡{{ max_weekly_profit|format_num }}
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="small-label mb-1">Semana con menor ganancia</div>
+                    <div class="fw-narrow">
+                        ₡{{ min_weekly_profit|format_num }}
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 mt-2 mt-md-0 text-md-end">
+                    <span class="badge-soft bg-accent-soft small">
+                        <i class="bi bi-activity me-1"></i>
+                        Total semanas: {{ week_labels|length }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+        <div class="card-matrix p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    <div class="small-label mb-1">Top productos</div>
+                    <h6 class="mb-0">Productos más rentables</h6>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-matrix mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th class="text-end">Ganancia</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for label, val in top_labels|zip(top_values) %}
+                        <tr>
+                            <td>{{ label }}</td>
+                            <td class="text-end">₡{{ val|format_num }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not top_labels %}
+                        <tr>
+                            <td colspan="2" class="text-center text-secondary-custom small">
+                                No hay productos registrados en el rango actual.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-lg-6">
+        <div class="card-matrix-soft p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    <div class="small-label mb-1">Pagos vencidos</div>
+                    <h6 class="mb-0">Resumen de cobros pendientes</h6>
+                </div>
+            </div>
+            <p class="text-secondary-custom small mb-1">
+                Total vencido: <strong>₡{{ overdue_total|format_num }}</strong>
+            </p>
+            <p class="text-secondary-custom small mb-0">
+                Ventas afectadas: <strong>{{ overdue_count }}</strong>
+            </p>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card-matrix-soft p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    <div class="small-label mb-1">Pagos próximos</div>
+                    <h6 class="mb-0">Cobros por venir</h6>
+                </div>
+            </div>
+            <p class="text-secondary-custom small mb-1">
+                Total próximo: <strong>₡{{ upcoming_total|format_num }}</strong>
+            </p>
+            <p class="text-secondary-custom small mb-0">
+                Ventas afectadas: <strong>{{ upcoming_count }}</strong>
+            </p>
         </div>
     </div>
 </div>
