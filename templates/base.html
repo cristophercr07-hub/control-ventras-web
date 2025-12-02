@@ -5,187 +5,493 @@
     <title>{% block title %}Control de Ventas{% endblock %}</title>
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
-
-    <!-- Bootstrap -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-
-    <!-- Chart.js -->
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+    <!-- Iconos de Bootstrap -->
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+    >
+    <!-- Chart.js para los gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        /* Tema oscuro profesional */
+        /* ================================
+           PALETA NEÓN OSCURA
+           ================================ */
+        :root {
+            --bg-dark: #000000;
+            --bg-card: #05070a;
+            --bg-card-soft: #080b10;
+
+            --border-neon: #00e5ff;
+            --border-soft: #1a1f2a;
+
+            --text-white: #ffffff;
+            --text-dim: #b0b0b0;
+
+            --title-neon: #00f9ff;
+            --accent: #00eaff;
+            --accent-soft: rgba(0, 234, 255, 0.15);
+
+            --danger-red: #ff3b3b;
+            --warning-amber: #ffb74d;
+        }
+
+        /* ================================
+           BASE
+           ================================ */
         body {
-            background-color: #0f0f0f;
-            color: #e6e6e6;
-            font-family: "Inter", "Arial Narrow", Arial, sans-serif;
+            background: radial-gradient(circle at top, #050b16 0, #000000 40%, #000000 100%);
+            color: var(--text-white);
+            font-family: "Arial Narrow", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
         }
 
-        /* Navbar */
-        .navbar {
-            background-color: #1a1a1a !important;
-            border-bottom: 1px solid #2d2d2d;
-        }
-        .navbar-brand {
-            font-weight: 600;
-            color: #00e0ff !important;
-        }
-        .nav-link {
-            color: #bfbfbf !important;
-            transition: 0.2s;
-        }
-        .nav-link:hover,
-        .nav-link.active {
-            color: #00e0ff !important;
-        }
-
-        /* Tarjetas */
-        .card {
-            background-color: #1a1a1a;
-            border: 1px solid #2d2d2d;
+        /* ================================
+           TARJETAS / CARDS
+           ================================ */
+        .card,
+        .card-matrix,
+        .card-matrix-soft {
+            background-color: var(--bg-card);
             border-radius: 12px;
+            border: 1px solid var(--border-soft);
+            position: relative;
+            overflow: hidden;
         }
 
-        .card p, .summary-box div {
-            border: 1px solid #2f2f2f;
-            background-color: #151515;
-            padding: 8px 10px;
+        .card-matrix-soft {
+            background-color: var(--bg-card-soft);
+        }
+
+        .card,
+        .card-matrix,
+        .card-matrix-soft {
+            box-shadow:
+                0 0 0 1px rgba(0, 0, 0, 0.8),
+                0 0 14px rgba(0, 234, 255, 0.08);
+        }
+
+        .card::before,
+        .card-matrix::before,
+        .card-matrix-soft::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            padding: 1px;
+            background: linear-gradient(135deg,
+                transparent,
+                rgba(0, 234, 255, 0.8),
+                transparent
+            );
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            -webkit-mask:
+                linear-gradient(#fff 0 0) content-box,
+                linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+                    mask-composite: exclude;
+        }
+
+        .card:hover::before,
+        .card-matrix:hover::before,
+        .card-matrix-soft:hover::before {
+            opacity: 0.9;
+        }
+
+        /* Contenido interno con padding estándar */
+        .card, .card-matrix, .card-matrix-soft {
+            padding: 1.25rem;
+        }
+
+        /* ================================
+           TIPOGRAFÍA / TÍTULOS
+           ================================ */
+        h1, h2, h3, h4, h5 {
+            color: var(--title-neon);
+            font-weight: 700;
+            text-align: center;
+            text-shadow: 0 0 10px rgba(0, 249, 255, 0.8);
+            letter-spacing: 0.04em;
+        }
+
+        p, td, th, label, input, button, a, li, span {
+            font-size: 0.95rem;
+        }
+
+        .text-secondary-custom {
+            color: var(--text-dim) !important;
+        }
+
+        .text-accent {
+            color: var(--accent) !important;
+        }
+
+        .fw-narrow {
+            font-family: "Arial Narrow", Arial, sans-serif;
+        }
+
+        .small-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--text-dim);
+        }
+
+        /* NÚMEROS DESTACADOS (TOTALES) */
+        .highlight-number {
+            font-weight: 700;
+            color: var(--text-white);
+            font-size: 1.2rem;
+            text-shadow: 0 0 10px rgba(0, 234, 255, 0.7);
+        }
+
+        /* ================================
+           NAVBAR
+           ================================ */
+        .navbar-dark {
+            background: rgba(0, 0, 0, 0.95);
+            border-bottom: 1px solid var(--border-neon);
+            box-shadow:
+                0 0 12px rgba(0, 234, 255, 0.25),
+                0 0 40px rgba(0, 0, 0, 0.9);
+        }
+
+        .navbar-brand {
+            color: var(--title-neon) !important;
+            font-weight: 700;
+            font-size: 1.05rem;
+            text-shadow: 0 0 12px rgba(0, 249, 255, 0.9);
+        }
+
+        .nav-link {
+            color: var(--text-dim) !important;
+            font-size: 0.9rem;
+        }
+
+        .nav-link.active,
+        .nav-link:hover {
+            color: var(--accent) !important;
+            text-shadow: 0 0 10px rgba(0, 234, 255, 0.9);
+        }
+
+        /* ================================
+           INPUTS / SELECTS / TEXTAREA
+           ================================ */
+        .form-control,
+        .form-select,
+        textarea {
+            background-color: #000000;
+            border: 1px solid #202633;
+            color: var(--text-white);
             border-radius: 8px;
         }
 
-        /* Inputs */
-        .form-control,
-        .form-select {
-            background-color: #121212 !important;
-            color: #fff !important;
-            border: 1px solid #303030;
-        }
         .form-control:focus,
-        .form-select:focus {
-            border-color: #00e0ff;
-            box-shadow: 0 0 6px rgba(0, 224, 255, 0.4);
+        .form-select:focus,
+        textarea:focus {
+            background-color: #000000;
+            color: var(--text-white);
+            border-color: var(--border-neon);
+            box-shadow: 0 0 10px rgba(0, 234, 255, 0.7);
         }
 
-        /* Botones */
-        .btn-primary {
-            background-color: #00e0ff;
-            border-color: #00e0ff;
-            color: #000;
-            font-weight: 600;
+        /* ÍCONO DEL CALENDARIO EN CAMPOS DATE */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1) brightness(2);
+            opacity: 0.85;
+            transition: 0.2s;
         }
+
+        input[type="date"]::-webkit-calendar-picker-indicator:hover {
+            opacity: 1;
+            filter:
+                invert(1) brightness(2)
+                drop-shadow(0 0 6px rgba(0, 234, 255, 0.8));
+        }
+
+        input[type="date"] {
+            color-scheme: dark;
+        }
+
+        /* PARA QUE LOS PLACEHOLDERS SE VEAN */
+        ::placeholder {
+            color: #777777;
+            opacity: 1;
+        }
+
+        /* ================================
+           BOTONES
+           ================================ */
+        .btn-primary {
+            background: radial-gradient(circle at top,
+                        var(--accent) 0,
+                        #0090aa 40%,
+                        #006372 100%);
+            border: none;
+            color: #000;
+            font-weight: 700;
+            border-radius: 999px;
+            padding-inline: 1.4rem;
+            box-shadow:
+                0 0 12px rgba(0, 234, 255, 0.9),
+                0 0 25px rgba(0, 234, 255, 0.4);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+        }
+
         .btn-primary:hover {
-            background-color: #00bcd4;
-            border-color: #00bcd4;
+            transform: translateY(-1px);
+            filter: brightness(1.1);
+            box-shadow:
+                0 0 18px rgba(0, 234, 255, 1),
+                0 0 40px rgba(0, 234, 255, 0.7);
         }
 
         .btn-outline-light {
-            border-color: #bfbfbf;
+            border-color: var(--accent);
+            color: var(--accent);
+            border-radius: 999px;
+            transition: 0.2s;
         }
+
         .btn-outline-light:hover {
-            color: #00e0ff;
-            border-color: #00e0ff;
+            background-color: var(--accent);
+            color: #000;
+            box-shadow: 0 0 16px rgba(0, 234, 255, 0.8);
         }
 
-        /* Iconos calendarios modernos */
-        input[type="date"]::-webkit-calendar-picker-indicator {
-            filter: invert(1) brightness(1.8) drop-shadow(0 0 4px #00e0ff);
-            cursor: pointer;
-            transition: 0.3s ease;
-        }
-        input[type="date"]:hover::-webkit-calendar-picker-indicator {
-            filter: invert(1) brightness(3) drop-shadow(0 0 6px #00e0ff);
+        .btn-sm {
+            padding-block: 0.2rem;
+            padding-inline: 0.6rem;
+            font-size: 0.8rem;
         }
 
-        /* Resúmenes (flujo) */
-        .summary-box div {
-            font-size: 13px;
-            text-align: center;
-            margin-bottom: 6px;
+        .btn-danger,
+        .btn-outline-danger {
+            border-radius: 999px;
         }
 
-        /* Cabeceras */
-        h1, h2, h3, h4, h5 {
-            font-size: 15pt;
+        .btn-danger {
+            background: linear-gradient(135deg, #ff3b3b, #b70000);
+            border: none;
+            box-shadow: 0 0 12px rgba(255, 0, 0, 0.8);
         }
 
-        /* Móvil */
+        .btn-danger:hover {
+            filter: brightness(1.15);
+            box-shadow: 0 0 16px rgba(255, 0, 0, 1);
+        }
+
+        .btn-outline-danger {
+            border-color: #ff3b3b;
+            color: #ff8080;
+        }
+
+        .btn-outline-danger:hover {
+            background: #ff3b3b;
+            color: #000;
+            box-shadow: 0 0 16px rgba(255, 0, 0, 0.9);
+        }
+
+        /* ================================
+           TABLAS
+           ================================ */
+        .table-dark {
+            --bs-table-bg: transparent;
+        }
+
+        .table th,
+        .table td {
+            border-color: #171a22;
+            padding: 0.4rem 0.55rem;
+        }
+
+        .table-striped tbody tr:nth-of-type(odd) {
+            background-color: rgba(255, 255, 255, 0.01);
+        }
+
+        .table-matrix thead th {
+            border-bottom: 1px solid var(--border-neon);
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .table-matrix tbody td {
+            border-top: 1px solid #181c26;
+        }
+
+        /* ================================
+           ELEMENTOS SUAVES / BADGES / ALERTAS
+           ================================ */
+        .alert-soft-danger {
+            background-color: rgba(255, 59, 59, 0.08);
+            border: 1px solid rgba(255, 59, 59, 0.55);
+            color: #ff9c9c;
+        }
+
+        .alert-soft-warning {
+            background-color: rgba(255, 183, 77, 0.08);
+            border: 1px solid rgba(255, 183, 77, 0.55);
+            color: #ffd8a1;
+        }
+
+        .bg-accent-soft {
+            background-color: var(--accent-soft) !important;
+            color: var(--accent);
+        }
+
+        .badge-soft {
+            border-radius: 999px;
+            padding: 0.25rem 0.7rem;
+            font-size: 0.7rem;
+        }
+
+        .divider-soft {
+            border-top: 1px dashed #2a3040;
+            margin-block: 0.75rem;
+        }
+
+        /* ================================
+           BLOQUES / MARCOS DE DATOS
+           ================================ */
+        .frame-box {
+            border: 1px solid var(--border-neon);
+            border-radius: 10px;
+            padding: 0.6rem 0.8rem;
+            background: radial-gradient(circle at top left,
+                    rgba(0, 234, 255, 0.12),
+                    rgba(0, 234, 255, 0.02),
+                    #020309 70%);
+        }
+
+        .frame-box-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--text-dim);
+            margin-bottom: 0.1rem;
+        }
+
+        .frame-box-value {
+            font-size: 0.95rem;
+        }
+
+        /* ================================
+           CONTENEDOR PRINCIPAL
+           ================================ */
+        .container-main {
+            position: relative;
+            z-index: 1;
+            padding-top: 1.5rem;
+            padding-bottom: 2rem;
+        }
+
+        /* ================================
+           RESPONSIVE
+           ================================ */
         @media (max-width: 576px) {
-            .card {
-                padding: 10px !important;
+            h1, h2, h3, h4, h5 {
+                font-size: 1rem;
             }
-            p, label, input, button, a, li {
-                font-size: 12pt;
+            .card,
+            .card-matrix,
+            .card-matrix-soft {
+                padding: 0.9rem;
+            }
+            .navbar-brand {
+                font-size: 0.95rem;
+            }
+            .nav-link {
+                font-size: 0.85rem;
+            }
+            .highlight-number {
+                font-size: 1.05rem;
             }
         }
     </style>
 
     {% block extra_head %}{% endblock %}
 </head>
-
 <body>
 
-<nav class="navbar navbar-dark navbar-expand-lg mb-4">
+<nav class="navbar navbar-dark navbar-expand-lg">
     <div class="container-fluid">
-        <a class="navbar-brand" href="{{ url_for('dashboard') }}">Control de Ventas</a>
-
+        <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+            <i class="bi bi-graph-up-arrow me-1"></i> Control de Ventas
+        </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                data-bs-target="#mainNavbar">
+                data-bs-target="#mainNavbar"
+                aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
 
         <div class="collapse navbar-collapse" id="mainNavbar">
             <ul class="navbar-nav me-auto">
-
                 {% if session.get('user_id') %}
-
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'ventas' %}active{% endif %}"
-                           href="{{ url_for('ventas') }}">Ventas</a>
+                           href="{{ url_for('ventas') }}">
+                            Ventas
+                        </a>
                     </li>
-
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'productos' %}active{% endif %}"
-                           href="{{ url_for('productos') }}">Productos</a>
+                           href="{{ url_for('productos') }}">
+                            Productos
+                        </a>
                     </li>
-
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'clientes' %}active{% endif %}"
-                           href="{{ url_for('clientes') }}">Clientes</a>
+                           href="{{ url_for('clientes') }}">
+                            Clientes
+                        </a>
                     </li>
-
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'flujo' %}active{% endif %}"
-                           href="{{ url_for('flujo') }}">Control de Flujo</a>
-                    </li>
-
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
-                           href="{{ url_for('dashboard') }}">Dashboard</a>
+                           href="{{ url_for('dashboard') }}">
+                            Dashboard
+                        </a>
                     </li>
-
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'flujo' %}active{% endif %}"
+                           href="{{ url_for('flujo') }}">
+                            Control de flujo
+                        </a>
+                    </li>
                     {% if session.get('is_admin') %}
                         <li class="nav-item">
                             <a class="nav-link {% if request.endpoint == 'usuarios' %}active{% endif %}"
-                               href="{{ url_for('usuarios') }}">Usuarios</a>
+                               href="{{ url_for('usuarios') }}">
+                                Usuarios
+                            </a>
                         </li>
                     {% endif %}
-
                 {% endif %}
             </ul>
 
             <ul class="navbar-nav ms-auto">
                 {% if session.get('user') %}
                     <li class="nav-item">
-                        <span class="nav-link text-light">
-                            Usuario: {{ session.get('user') }}
-                            {% if session.get('is_admin') %}(Admin){% endif %}
+                        <span class="nav-link text-secondary-custom">
+                            <i class="bi bi-person-circle me-1"></i>
+                            {{ session.get('user') }}
+                            {% if session.get('is_admin') %}
+                                <span class="text-accent">(admin)</span>
+                            {% endif %}
                         </span>
                     </li>
-
                     <li class="nav-item">
-                        <a class="nav-link text-danger" href="{{ url_for('logout') }}">Salir</a>
+                        <a class="nav-link text-danger" href="{{ url_for('logout') }}">
+                            <i class="bi bi-box-arrow-right me-1"></i> Salir
+                        </a>
                     </li>
                 {% endif %}
             </ul>
@@ -193,14 +499,32 @@
     </div>
 </nav>
 
-<!-- CONTENIDO PRINCIPAL -->
-<div class="container mb-4">
+<div class="container container-main">
     {% block content %}{% endblock %}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-{% block extra_scripts %}{% endblock %}
+{% block extra_scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Autollenar los inputs de fecha marcados con data-autotoday="1"
+    const today = new Date().toISOString().slice(0, 10);
+    document.querySelectorAll('input[type="date"][data-autotoday="1"]').forEach(function(inp) {
+        if (!inp.value) {
+            inp.value = today;
+        }
+    });
+});
 
+// Doble confirmación para acciones peligrosas (eliminar)
+function doubleConfirm(msg1, msg2) {
+    if (!confirm(msg1)) {
+        return false;
+    }
+    return confirm(msg2);
+}
+</script>
+{% endblock %}
 </body>
 </html>
