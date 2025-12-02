@@ -3,23 +3,6 @@
 
 {% block content %}
 
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card-matrix p-4">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
-                <div>
-                    <div class="small-label mb-1">Administración</div>
-                    <h4 class="mb-1 text-accent">Usuarios del sistema</h4>
-                    <p class="text-secondary-custom mb-0">
-                        Solo el administrador puede crear, ver y gestionar usuarios.
-                        Cada usuario tendrá acceso exclusivo a sus propios datos de ventas.
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 {% if error %}
     <div class="alert alert-danger py-2 mb-3">{{ error }}</div>
 {% endif %}
@@ -28,27 +11,23 @@
 {% endif %}
 
 <div class="row g-3">
-    <!-- FORMULARIO CREAR USUARIO -->
     <div class="col-12 col-lg-5">
-        <div class="card-matrix-soft p-4 h-100">
-            <div class="mb-3 text-center">
-                <div class="small-label mb-1">Nuevo usuario</div>
-                <h5 class="mb-0">Crear cuenta</h5>
-            </div>
-
-            <p class="text-secondary-custom mb-3 text-center">
-                Ingresa un <strong>nombre de usuario</strong> y una <strong>contraseña segura</strong>.
-                Puedes marcar si será administrador. Solo usuarios administradores pueden ver esta sección.
+        <div class="card">
+            <h2 class="mb-3">Crear usuario</h2>
+            <p class="text-secondary-custom mb-3">
+                Solo el administrador puede crear nuevos usuarios. Cada usuario tendrá
+                su propio entorno de ventas, clientes, productos y flujo.
             </p>
 
             <form method="post" action="{{ url_for('usuarios') }}">
+                <input type="hidden" name="action" value="create">
                 <div class="mb-3">
-                    <label class="form-label text-secondary-custom">Nombre de usuario</label>
+                    <label class="form-label text-secondary-custom">Usuario</label>
                     <input
                         type="text"
                         name="username"
                         class="form-control text-center"
-                        placeholder="Ej: juan_perez"
+                        placeholder="Ej: juan"
                         required
                     >
                 </div>
@@ -58,11 +37,11 @@
                         type="password"
                         name="password"
                         class="form-control text-center"
-                        placeholder="Mínimo 6 caracteres recomendados"
+                        placeholder="Contraseña inicial"
                         required
                     >
                 </div>
-                <div class="mb-3 form-check">
+                <div class="form-check mb-3">
                     <input
                         class="form-check-input"
                         type="checkbox"
@@ -71,7 +50,7 @@
                         name="is_admin"
                     >
                     <label class="form-check-label text-secondary-custom" for="is_admin">
-                        Conceder rol de administrador
+                        Dar permisos de administrador
                     </label>
                 </div>
                 <div class="d-grid">
@@ -83,133 +62,58 @@
         </div>
     </div>
 
-    <!-- LISTADO DE USUARIOS -->
     <div class="col-12 col-lg-7">
-        <div class="card-matrix p-4 h-100">
-            <div class="mb-3 d-flex justify-content-between align-items-center">
-                <div>
-                    <div class="small-label mb-1">Listado</div>
-                    <h5 class="mb-0">Usuarios registrados</h5>
-                </div>
-                <span class="badge-soft bg-accent-soft">
-                    <i class="bi bi-people me-1"></i>
-                    Total: {{ users|length }}
-                </span>
-            </div>
-
+        <div class="card">
+            <h2 class="mb-3">Usuarios registrados</h2>
             {% if users and users|length > 0 %}
-                <div class="table-responsive d-none d-md-block">
-                    <table class="table table-matrix table-sm align-middle mb-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-striped table-sm align-middle">
                         <thead>
                             <tr class="text-center">
                                 <th>Usuario</th>
                                 <th>Rol</th>
-                                <th style="width: 90px;">Acciones</th>
+                                <th>Cambiar contraseña</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for u in users %}
                                 <tr>
-                                    <td class="text-center">
-                                        {% if session.get('user_id') == u.id %}
-                                            <span class="text-accent">
-                                                <i class="bi bi-person-check me-1"></i>{{ u.username }}
-                                            </span>
-                                            <span class="badge-soft ms-1">Actual</span>
-                                        {% else %}
-                                            {{ u.username }}
-                                        {% endif %}
-                                    </td>
+                                    <td class="text-center">{{ u.username }}</td>
                                     <td class="text-center">
                                         {% if u.is_admin %}
-                                            <span class="badge-soft bg-accent-soft">
-                                                <i class="bi bi-shield-lock me-1"></i> Admin
-                                            </span>
+                                            <span class="badge bg-accent-soft">Admin</span>
                                         {% else %}
-                                            <span class="badge-soft" style="border-color:#4c6fff;color:#c9d1ff;">
-                                                <i class="bi bi-person me-1"></i> Usuario
-                                            </span>
+                                            <span class="badge bg-secondary">Usuario</span>
                                         {% endif %}
                                     </td>
-                                    <td class="text-center">
-                                        {% if session.get('user_id') != u.id %}
-                                            <form method="post"
-                                                  action="{{ url_for('delete_user', user_id=u.id) }}"
-                                                  class="d-inline">
-                                                <button type="submit"
-                                                        class="btn btn-sm btn-outline-danger"
-                                                        onclick="return doubleConfirm(
-                                                            '¿Eliminar este usuario?',
-                                                            'Esta acción no se puede deshacer. ¿Confirmas eliminarlo?'
-                                                        );">
-                                                    <i class="bi bi-trash"></i>
+                                    <td>
+                                        <form method="post" action="{{ url_for('usuarios') }}" class="row g-2 justify-content-center">
+                                            <input type="hidden" name="action" value="change_password">
+                                            <input type="hidden" name="user_id" value="{{ u.id }}">
+                                            <div class="col-7 col-md-6">
+                                                <input
+                                                    type="password"
+                                                    name="new_password"
+                                                    class="form-control form-control-sm text-center"
+                                                    placeholder="Nueva contraseña"
+                                                    required
+                                                >
+                                            </div>
+                                            <div class="col-5 col-md-4 d-grid">
+                                                <button type="submit" class="btn btn-sm btn-outline-light">
+                                                    <i class="bi bi-key me-1"></i> Actualizar
                                                 </button>
-                                            </form>
-                                        {% else %}
-                                            <span class="text-secondary-custom small">
-                                                No puedes borrarte a ti mismo.
-                                            </span>
-                                        {% endif %}
+                                            </div>
+                                        </form>
                                     </td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-
-                <!-- Versión móvil tipo tarjetas -->
-                <div class="d-block d-md-none">
-                    {% for u in users %}
-                        <div class="card-matrix-soft p-3 mb-2">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <div>
-                                    {% if session.get('user_id') == u.id %}
-                                        <span class="text-accent">
-                                            <i class="bi bi-person-check me-1"></i>{{ u.username }}
-                                        </span>
-                                        <span class="badge-soft ms-1">Actual</span>
-                                    {% else %}
-                                        <strong>{{ u.username }}</strong>
-                                    {% endif %}
-                                </div>
-                                <div>
-                                    {% if u.is_admin %}
-                                        <span class="badge-soft bg-accent-soft">
-                                            <i class="bi bi-shield-lock me-1"></i> Admin
-                                        </span>
-                                    {% else %}
-                                        <span class="badge-soft" style="border-color:#4c6fff;color:#c9d1ff;">
-                                            <i class="bi bi-person me-1"></i> Usuario
-                                        </span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            {% if session.get('user_id') != u.id %}
-                                <div class="text-end mt-2">
-                                    <form method="post"
-                                          action="{{ url_for('delete_user', user_id=u.id) }}"
-                                          class="d-inline">
-                                        <button type="submit"
-                                                class="btn btn-sm btn-outline-danger"
-                                                onclick="return doubleConfirm(
-                                                    '¿Eliminar este usuario?',
-                                                    'Esta acción no se puede deshacer. ¿Confirmas eliminarlo?'
-                                                );">
-                                            <i class="bi bi-trash"></i> Eliminar
-                                        </button>
-                                    </form>
-                                </div>
-                            {% else %}
-                                <p class="text-secondary-custom small mb-0 mt-2 text-center">
-                                    No puedes eliminar tu propio usuario desde aquí.
-                                </p>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                </div>
             {% else %}
-                <p class="text-secondary-custom text-center mb-0">
-                    Aún no hay usuarios registrados además del administrador actual.
+                <p class="text-secondary-custom mb-0 text-center">
+                    No hay usuarios registrados.
                 </p>
             {% endif %}
         </div>
