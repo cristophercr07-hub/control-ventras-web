@@ -1,231 +1,264 @@
 {% extends "base.html" %}
 {% block title %}Control de Flujo - Control de Ventas{% endblock %}
 
+{% block extra_head %}
+{{ super() }}
+<style>
+.summary-box {
+    border: 1px solid #2d3748;
+    border-radius: 0.75rem;
+    padding: 0.45rem 0.6rem;
+    background-color: #050814;
+}
+.summary-label {
+    font-size: 0.75rem;
+    color: #a0aec0;
+}
+.summary-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 
 {% if error %}
-<div class="alert alert-soft-danger py-2 px-3 mb-3">{{ error }}</div>
+<div class="alert alert-danger py-2 mb-3">{{ error }}</div>
 {% endif %}
 {% if success %}
-<div class="alert alert-soft-success py-2 px-3 mb-3">{{ success }}</div>
+<div class="alert alert-success py-2 mb-3">{{ success }}</div>
 {% endif %}
 
 <!-- FORMULARIO DE MOVIMIENTOS -->
-<div class="card-matrix p-4 mb-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
-        <div>
-            <div class="small-label mb-1">Registrar movimiento</div>
-            <h4 class="fw-narrow mb-1">Gastos y reinversiones</h4>
-            <p class="text-secondary-custom mb-0">
-                Registra tus <strong>gastos</strong> y <strong>reinversiones</strong> para calcular
-                el flujo neto del negocio, tu ahorro real y compararlo contra el objetivo del 10 %
-                de tus ganancias.
-            </p>
-        </div>
-    </div>
+<div class="card p-3 mb-3">
+    <h5 class="mb-2 text-accent text-center">Registrar movimiento</h5>
+    <p class="text-secondary-custom small mb-3 text-center">
+        Registra tus <b>gastos</b> y <b>reinversiones</b> para calcular el flujo neto, tu ahorro real y compararlo
+        con el objetivo de ahorro del 10% de tus ganancias.
+    </p>
 
     <form method="post" action="{{ url_for('flujo') }}">
-        <div class="row g-3 align-items-end">
-            <div class="col-md-3 col-12">
-                <label class="form-label form-label-sm">Fecha</label>
-                <input type="date" name="date" class="form-control form-control-sm text-center">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-3">
+                <label class="form-label text-secondary-custom mb-1">Fecha</label>
+                <input
+                    type="date"
+                    name="date"
+                    class="form-control form-control-sm text-center"
+                    data-autotoday="1"
+                >
             </div>
-            <div class="col-md-3 col-12">
-                <label class="form-label form-label-sm">Descripción</label>
-                <input type="text" name="description"
-                       class="form-control form-control-sm"
-                       placeholder="Ej: Compra de empaques" required>
+            <div class="col-12 col-md-3">
+                <label class="form-label text-secondary-custom mb-1">Descripción</label>
+                <input
+                    type="text"
+                    name="description"
+                    class="form-control form-control-sm text-center"
+                    placeholder="Ej: Empaques"
+                    required
+                >
             </div>
-            <div class="col-md-3 col-6">
-                <label class="form-label form-label-sm">Tipo</label>
+            <div class="col-6 col-md-3">
+                <label class="form-label text-secondary-custom mb-1">Tipo</label>
                 <select name="category" class="form-select form-select-sm text-center">
                     <option value="Gasto">Gasto</option>
                     <option value="Reinversión">Reinversión</option>
                 </select>
             </div>
-            <div class="col-md-3 col-6">
-                <label class="form-label form-label-sm">Monto (₡)</label>
-                <input type="number" step="0.01" name="amount"
-                       class="form-control form-control-sm text-end"
-                       value="0" required>
+            <div class="col-6 col-md-3">
+                <label class="form-label text-secondary-custom mb-1">Monto (₡)</label>
+                <input
+                    type="number"
+                    step="0.01"
+                    name="amount"
+                    class="form-control form-control-sm text-end"
+                    value="0"
+                    required
+                >
             </div>
         </div>
-        <div class="mt-3 text-end">
-            <button type="submit" class="btn btn-accent btn-sm">
-                <i class="bi bi-save me-1"></i>Guardar movimiento
+        <div class="mt-3 text-center">
+            <button type="submit" class="btn btn-primary btn-sm w-100 w-md-auto">
+                <i class="bi bi-save me-1"></i> Guardar movimiento
             </button>
         </div>
     </form>
 </div>
 
-<!-- FILTROS + RESUMEN -->
-<div class="card-matrix p-4 mb-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
-        <div>
-            <div class="small-label mb-1">Resumen y filtros</div>
-            <h4 class="fw-narrow mb-1">Flujo del periodo</h4>
-            <p class="text-secondary-custom mb-0">
-                Filtra por rango de fechas y tipo de movimiento para analizar ingresos, egresos
-                y ahorro en el periodo seleccionado.
-            </p>
-        </div>
-    </div>
+<!-- RESUMEN Y FILTROS -->
+<div class="card p-3 mb-3">
+    <h5 class="mb-2 text-accent text-center">Resumen y filtros</h5>
 
     <form method="get" action="{{ url_for('flujo') }}" class="mb-3">
-        <div class="row g-3 align-items-end">
-            <div class="col-md-3 col-6">
-                <label class="form-label form-label-sm">Desde</label>
-                <input type="date" name="date_from"
-                       class="form-control form-control-sm text-center"
-                       value="{{ date_from or '' }}">
+        <div class="row g-2 align-items-end">
+            <div class="col-6 col-md-3">
+                <label class="form-label text-secondary-custom mb-1">Desde</label>
+                <input
+                    type="date"
+                    name="date_from"
+                    class="form-control form-control-sm text-center"
+                    value="{{ date_from or '' }}"
+                >
             </div>
-            <div class="col-md-3 col-6">
-                <label class="form-label form-label-sm">Hasta</label>
-                <input type="date" name="date_to"
-                       class="form-control form-control-sm text-center"
-                       value="{{ date_to or '' }}">
+            <div class="col-6 col-md-3">
+                <label class="form-label text-secondary-custom mb-1">Hasta</label>
+                <input
+                    type="date"
+                    name="date_to"
+                    class="form-control form-control-sm text-center"
+                    value="{{ date_to or '' }}"
+                >
             </div>
-            <div class="col-md-3 col-6">
-                <label class="form-label form-label-sm">Tipo</label>
+            <div class="col-6 col-md-3">
+                <label class="form-label text-secondary-custom mb-1">Tipo</label>
                 <select name="category_filter" class="form-select form-select-sm text-center">
                     <option value="" {% if not category_filter %}selected{% endif %}>Todos</option>
                     <option value="Gasto" {% if category_filter == 'Gasto' %}selected{% endif %}>Gasto</option>
                     <option value="Reinversión" {% if category_filter == 'Reinversión' %}selected{% endif %}>Reinversión</option>
                 </select>
             </div>
-            <div class="col-md-3 col-6 d-flex flex-column gap-2">
-                <button type="submit" class="btn btn-accent btn-sm w-100">
-                    <i class="bi bi-funnel me-1"></i>Aplicar filtros
-                </button>
-                <a href="{{ url_for('flujo') }}" class="btn btn-outline-secondary btn-sm w-100">
-                    <i class="bi bi-arrow-counterclockwise me-1"></i>Limpiar filtros
-                </a>
+            <div class="col-6 col-md-3">
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-funnel me-1"></i> Aplicar filtros
+                    </button>
+                    <a href="{{ url_for('flujo') }}" class="btn btn-outline-light btn-sm">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar filtros
+                    </a>
+                </div>
             </div>
         </div>
     </form>
 
-    <!-- Resumen numérico -->
-    <div class="row text-center g-3">
-        <div class="col-md-2 col-6">
-            <div class="small-label">Ingresos (₡)</div>
-            <div class="fw-narrow text-accent">₡{{ total_ingresos|format_num }}</div>
+    <!-- RESUMEN ENCERRADO EN MARCOS -->
+    <div class="row g-2 text-center mb-2">
+        <div class="col-6 col-md-2">
+            <div class="summary-box">
+                <div class="summary-label">Ingresos</div>
+                <div class="summary-value text-accent">₡{{ "%.2f"|format(total_ingresos) }}</div>
+            </div>
         </div>
-        <div class="col-md-2 col-6">
-            <div class="small-label">Ganancia (₡)</div>
-            <div class="fw-narrow text-accent">₡{{ total_ganancia|format_num }}</div>
+        <div class="col-6 col-md-2">
+            <div class="summary-box">
+                <div class="summary-label">Ganancia</div>
+                <div class="summary-value text-accent">₡{{ "%.2f"|format(total_ganancia) }}</div>
+            </div>
         </div>
-        <div class="col-md-2 col-6">
-            <div class="small-label">Gastos (₡)</div>
-            <div class="fw-narrow text-accent">₡{{ total_gastos|format_num }}</div>
+        <div class="col-6 col-md-2">
+            <div class="summary-box">
+                <div class="summary-label">Gastos</div>
+                <div class="summary-value text-accent">₡{{ "%.2f"|format(total_gastos) }}</div>
+            </div>
         </div>
-        <div class="col-md-2 col-6">
-            <div class="small-label">Reinversión (₡)</div>
-            <div class="fw-narrow text-accent">₡{{ total_reinv|format_num }}</div>
+        <div class="col-6 col-md-2">
+            <div class="summary-box">
+                <div class="summary-label">Reinversión</div>
+                <div class="summary-value text-accent">₡{{ "%.2f"|format(total_reinv) }}</div>
+            </div>
         </div>
-        <div class="col-md-2 col-6">
-            <div class="small-label">Egresos totales (₡)</div>
-            <div class="fw-narrow text-accent">₡{{ total_egresos|format_num }}</div>
+        <div class="col-6 col-md-2">
+            <div class="summary-box">
+                <div class="summary-label">Egresos totales</div>
+                <div class="summary-value text-accent">₡{{ "%.2f"|format(total_egresos) }}</div>
+            </div>
         </div>
-        <div class="col-md-2 col-6">
-            <div class="small-label">Neto (ganancia - egresos)</div>
-            <div class="fw-narrow text-accent">₡{{ neto|format_num }}</div>
-        </div>
-    </div>
-
-    <div class="divider-soft my-3"></div>
-
-    <div class="row text-center g-3">
-        <div class="col-md-4 col-12">
-            <div class="small-label">Ahorro objetivo (10 % de la ganancia)</div>
-            <div class="fw-narrow text-accent">₡{{ ahorro_objetivo|format_num }}</div>
-        </div>
-        <div class="col-md-4 col-12">
-            <div class="small-label">Ahorro real estimado (máx[nieto, 0])</div>
-            <div class="fw-narrow text-accent">₡{{ ahorro_real|format_num }}</div>
-        </div>
-        <div class="col-md-4 col-12">
-            <div class="small-label">Ahorro faltante para meta</div>
-            <div class="fw-narrow text-accent">₡{{ ahorro_faltante|format_num }}</div>
+        <div class="col-6 col-md-2">
+            <div class="summary-box">
+                <div class="summary-label">Neto</div>
+                <div class="summary-value text-accent">₡{{ "%.2f"|format(neto) }}</div>
+            </div>
         </div>
     </div>
 
-    <p class="text-secondary-custom text-center mt-3 mb-0">
+    <hr class="my-2">
+
+    <div class="row g-2 text-center">
+        <div class="col-12 col-md-4">
+            <div class="summary-box">
+                <div class="summary-label">Ahorro objetivo (10% de ganancia)</div>
+                <div class="summary-value text-accent">₡{{ "%.2f"|format(ahorro_objetivo) }}</div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="summary-box">
+                <div class="summary-label">Ahorro real estimado (máx[neto, 0])</div>
+                <div class="summary-value text-accent">₡{{ "%.2f"|format(ahorro_real) }}</div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="summary-box">
+                <div class="summary-label">Ahorro faltante para meta</div>
+                <div class="summary-value text-accent">₡{{ "%.2f"|format(ahorro_faltante) }}</div>
+            </div>
+        </div>
+    </div>
+
+    <p class="text-secondary-custom small text-center mt-2 mb-2">
         {% if meta_cumplida %}
-            ¡Meta de ahorro del 10&nbsp;% <span class="text-accent">cumplida</span> en el periodo filtrado!
+            ¡Meta de ahorro del 10% <span class="text-accent">cumplida</span> en el periodo filtrado!
         {% else %}
-            Aún no alcanzas el 10&nbsp;% de ahorro sobre la ganancia en el periodo filtrado.
-            Usa este indicador para ajustar tus gastos y tu reinversión.
+            Aún no alcanzas el 10% de ahorro sobre la ganancia en el periodo filtrado.
+            Usa este indicador para ajustar gastos y reinversión.
         {% endif %}
     </p>
 
-    <div class="text-end mt-3">
-        <a class="btn btn-outline-accent btn-sm"
-           href="{{ url_for('flujo_export',
-                            date_from=date_from,
-                            date_to=date_to,
-                            category_filter=category_filter) }}">
-            <i class="bi bi-file-earmark-excel me-1"></i>Exportar a Excel
+    <div class="text-end">
+        <a
+            class="btn btn-outline-light btn-sm"
+            href="{{ url_for('flujo_export',
+                             date_from=date_from,
+                             date_to=date_to,
+                             category_filter=category_filter) }}"
+        >
+            <i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel
         </a>
     </div>
 </div>
 
 <!-- GRÁFICOS -->
-<div class="card-matrix-soft p-4 mb-4">
-    <div class="small-label mb-1">Vista general</div>
-    <h5 class="fw-narrow mb-3">Comparación de montos</h5>
-    <p class="text-secondary-custom mb-3">
-        Compara directamente tus <strong>ingresos</strong>, <strong>ganancia</strong>,
-        <strong>gastos</strong>, <strong>reinversión</strong>, <strong>egresos totales</strong>
-        y el <strong>neto</strong> del periodo seleccionado.
-    </p>
-    <div class="chart-container" style="max-width: 480px; margin: 0 auto;">
+<div class="card p-3 mb-3">
+    <h6 class="mb-2 text-accent text-center">Vista general (barras)</h6>
+    <div class="chart-container" style="max-width: 420px; margin: 0 auto;">
         <canvas id="flujoBarChart" height="200"></canvas>
     </div>
 </div>
 
-<div class="card-matrix-soft p-4 mb-4">
-    <div class="small-label mb-1">Distribución del flujo</div>
-    <h5 class="fw-narrow mb-3">Gastos, reinversión y ahorro</h5>
-    <p class="text-secondary-custom mb-3">
-        La dona muestra cómo se reparte tu flujo entre <strong>gastos</strong>,
-        <strong>reinversión</strong>, <strong>ahorro objetivo</strong> y
-        <strong>ahorro real estimado</strong>.
-    </p>
-    <div class="chart-container" style="max-width: 480px; margin: 0 auto;">
+<div class="card p-3 mb-3">
+    <h6 class="mb-2 text-accent text-center">Distribución del flujo</h6>
+    <div class="chart-container" style="max-width: 420px; margin: 0 auto;">
         <canvas id="flujoPieChart" height="200"></canvas>
     </div>
 </div>
 
-<!-- LISTADO DE MOVIMIENTOS -->
-<div class="card-matrix p-4">
-    <div class="small-label mb-1">Movimientos registrados</div>
-    <h5 class="fw-narrow mb-3">Detalle de gastos y reinversiones</h5>
-
+<!-- LISTADO -->
+<div class="card p-3">
+    <h6 class="mb-2 text-accent text-center">Movimientos registrados</h6>
     {% if expenses and expenses|length > 0 %}
     <div class="table-responsive">
-        <table class="table table-matrix align-middle">
+        <table class="table table-dark table-striped table-sm align-middle mb-0">
             <thead>
-                <tr>
+                <tr class="text-center">
                     <th>Fecha</th>
                     <th>Descripción</th>
                     <th>Tipo</th>
-                    <th class="text-end">Monto (₡)</th>
+                    <th>Monto (₡)</th>
                 </tr>
             </thead>
             <tbody>
                 {% for e in expenses %}
                 <tr>
-                    <td>{{ e.date.isoformat() if e.date else '' }}</td>
-                    <td>{{ e.description }}</td>
-                    <td>{{ e.category }}</td>
-                    <td class="text-end">₡{{ e.amount|format_num }}</td>
+                    <td class="text-center">{{ e.date }}</td>
+                    <td class="text-center">{{ e.description }}</td>
+                    <td class="text-center">{{ e.category }}</td>
+                    <td class="text-end text-accent">{{ "%.2f"|format(e.amount) }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
     {% else %}
-    <p class="text-secondary-custom text-center mb-0">
+    <p class="text-secondary-custom small mb-0 text-center">
         No hay movimientos registrados en el rango seleccionado.
     </p>
     {% endif %}
@@ -247,12 +280,12 @@ document.addEventListener("DOMContentLoaded", function() {
     const ahorroReal = {{ ahorro_real or 0 }};
 
     const barColors = [
-        'rgba(0, 229, 229, 0.7)',   // Ingresos
-        'rgba(0, 140, 255, 0.7)',   // Ganancia
-        'rgba(255, 99, 132, 0.7)',  // Gastos
-        'rgba(255, 159, 64, 0.7)',  // Reinv
-        'rgba(153, 102, 255, 0.7)', // Egresos
-        'rgba(75, 192, 192, 0.7)'   // Neto
+        'rgba(0, 229, 229, 0.7)',
+        'rgba(0, 140, 255, 0.7)',
+        'rgba(255, 99, 132, 0.7)',
+        'rgba(255, 159, 64, 0.7)',
+        'rgba(153, 102, 255, 0.7)',
+        'rgba(75, 192, 192, 0.7)'
     ];
     const barBorderColors = [
         '#00e5e5',
@@ -264,10 +297,10 @@ document.addEventListener("DOMContentLoaded", function() {
     ];
 
     const pieColors = [
-        'rgba(255, 99, 132, 0.7)',  // Gastos
-        'rgba(255, 159, 64, 0.7)',  // Reinv
-        'rgba(0, 229, 229, 0.7)',   // Ahorro objetivo
-        'rgba(0, 140, 255, 0.7)'    // Ahorro real
+        'rgba(255, 99, 132, 0.7)',
+        'rgba(255, 159, 64, 0.7)',
+        'rgba(0, 229, 229, 0.7)',
+        'rgba(0, 140, 255, 0.7)'
     ];
     const pieBorderColors = [
         '#ff6384',
@@ -277,21 +310,14 @@ document.addEventListener("DOMContentLoaded", function() {
     ];
 
     const ctxBar = document.getElementById('flujoBarChart');
-    if (ctxBar && window.Chart) {
+    if (ctxBar) {
         new Chart(ctxBar, {
             type: 'bar',
             data: {
                 labels: ['Ingresos', 'Ganancia', 'Gastos', 'Reinv.', 'Egresos', 'Neto'],
                 datasets: [{
                     label: 'Monto (₡)',
-                    data: [
-                        totalIngresos,
-                        totalGanancia,
-                        totalGastos,
-                        totalReinv,
-                        totalEgresos,
-                        neto
-                    ],
+                    data: [totalIngresos, totalGanancia, totalGastos, totalReinv, totalEgresos, neto],
                     backgroundColor: barColors,
                     borderColor: barBorderColors,
                     borderWidth: 1
@@ -318,23 +344,13 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     const ctxPie = document.getElementById('flujoPieChart');
-    if (ctxPie && window.Chart) {
+    if (ctxPie) {
         new Chart(ctxPie, {
             type: 'doughnut',
             data: {
-                labels: [
-                    'Gastos',
-                    'Reinversión',
-                    'Ahorro objetivo',
-                    'Ahorro real estimado'
-                ],
+                labels: ['Gastos', 'Reinversión', 'Ahorro objetivo', 'Ahorro real'],
                 datasets: [{
-                    data: [
-                        totalGastos,
-                        totalReinv,
-                        ahorroObjetivo,
-                        ahorroReal
-                    ],
+                    data: [totalGastos, totalReinv, ahorroObjetivo, ahorroReal],
                     backgroundColor: pieColors,
                     borderColor: pieBorderColors,
                     borderWidth: 1
