@@ -10,152 +10,141 @@
 <div class="alert alert-success py-2 mb-3">{{ success }}</div>
 {% endif %}
 
-<div class="row">
-    <div class="col-12">
-        <div class="card p-4 mb-4">
-            <h2 class="mb-3 text-accent">Gestión de clientes</h2>
-            <p class="text-secondary-custom text-center mb-3">
-                Aquí puedes registrar y mantener una lista de <b>clientes</b>.
-                Los nombres quedarán disponibles para seleccionarlos rápidamente
-                en la pestaña de <b>Ventas</b>.
+<div class="row g-3">
+    <!-- FORMULARIO -->
+    <div class="col-12 col-lg-4">
+        <div class="card p-3">
+            <h5 class="mb-2 text-accent text-center">Nuevo cliente</h5>
+            <p class="text-secondary-custom small mb-3 text-center">
+                Registra tus clientes para seleccionarlos rápidamente al crear ventas.
             </p>
-
-            <!-- FORMULARIO CREAR / ACTUALIZAR CLIENTE -->
             <form method="post" action="{{ url_for('clientes') }}">
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-3 col-12">
-                        <label class="form-label text-secondary-custom">Nombre del cliente</label>
-                        <input
-                            type="text"
-                            name="name"
-                            class="form-control text-center"
-                            placeholder="Ej: Juan Pérez"
-                            required
-                        >
-                        <small class="text-secondary-custom">
-                            Si el nombre ya existe, se actualizarán los datos.
-                        </small>
-                    </div>
-
-                    <div class="col-md-3 col-12">
-                        <label class="form-label text-secondary-custom">Teléfono</label>
-                        <input
-                            type="text"
-                            name="phone"
-                            class="form-control text-center"
-                            placeholder="Ej: 8888-8888"
-                        >
-                    </div>
-
-                    <div class="col-md-3 col-12">
-                        <label class="form-label text-secondary-custom">Correo electrónico</label>
-                        <input
-                            type="email"
-                            name="email"
-                            class="form-control text-center"
-                            placeholder="Ej: cliente@correo.com"
-                        >
-                    </div>
-
-                    <div class="col-md-3 col-12">
-                        <label class="form-label text-secondary-custom">Notas</label>
-                        <input
-                            type="text"
-                            name="notes"
-                            class="form-control text-center"
-                            placeholder="Ej: Cliente frecuente"
-                        >
-                    </div>
-
-                    <div class="col-12 mt-2">
-                        <button type="submit" class="btn btn-primary w-100 w-md-auto">
-                            <i class="bi bi-save me-1"></i> Guardar / actualizar
-                        </button>
-                    </div>
+                <div class="mb-2">
+                    <label class="form-label text-secondary-custom mb-1">Nombre del cliente</label>
+                    <input
+                        type="text"
+                        name="name"
+                        class="form-control form-control-sm text-center"
+                        required
+                    >
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-secondary-custom mb-1">Teléfono</label>
+                    <input
+                        type="text"
+                        name="phone"
+                        class="form-control form-control-sm text-center"
+                        placeholder="Opcional"
+                    >
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-secondary-custom mb-1">Correo electrónico</label>
+                    <input
+                        type="email"
+                        name="email"
+                        class="form-control form-control-sm text-center"
+                        placeholder="Opcional"
+                    >
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary-custom mb-1">Notas</label>
+                    <textarea
+                        name="notes"
+                        class="form-control form-control-sm text-center"
+                        rows="2"
+                        placeholder="Notas internas (ej. tipo de cliente, preferencias)"
+                    ></textarea>
+                </div>
+                <div class="text-center">
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-person-plus me-1"></i> Guardar cliente
+                    </button>
                 </div>
             </form>
         </div>
     </div>
-</div>
 
-<!-- LISTADO DE CLIENTES -->
-<div class="row">
-    <div class="col-12">
-        <div class="card p-4">
-            <h3 class="mb-3 text-accent">Lista de clientes</h3>
-
+    <!-- LISTADO -->
+    <div class="col-12 col-lg-8">
+        <div class="card p-3">
+            <h5 class="mb-2 text-accent text-center">Listado de clientes</h5>
             {% if clients and clients|length > 0 %}
-                <!-- Vista de tabla para pantallas medianas/grandes -->
-                <div class="table-responsive d-none d-md-block">
-                    <table class="table table-dark table-striped table-sm align-middle">
-                        <thead>
-                            <tr class="text-center">
-                                <th>Nombre</th>
-                                <th>Teléfono</th>
-                                <th>Correo</th>
-                                <th>Notas</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for c in clients %}
-                            <tr>
-                                <td class="text-center">{{ c.name }}</td>
-                                <td class="text-center">{{ c.phone or '-' }}</td>
-                                <td class="text-center">{{ c.email or '-' }}</td>
-                                <td class="text-center">{{ c.notes or '-' }}</td>
-                                <td class="text-center">
-                                    <form method="post"
-                                          action="{{ url_for('delete_client', client_id=c.id) }}"
-                                          class="d-inline">
-                                        <button type="submit"
-                                                class="btn btn-sm btn-outline-danger"
-                                                onclick="return doubleConfirm('¿Eliminar este cliente?', 'No se borran las ventas existentes, solo el registro de cliente. ¿Confirmas?');">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Vista tipo tarjeta para móviles -->
-                <div class="d-block d-md-none">
-                    {% for c in clients %}
-                    <div class="border rounded p-2 mb-2">
-                        <div class="fw-bold text-accent">{{ c.name }}</div>
-                        <div class="text-secondary-custom">
-                            Teléfono:
-                            <span class="text-accent">{{ c.phone or '-' }}</span>
-                        </div>
-                        <div class="text-secondary-custom">
-                            Correo:
-                            <span class="text-accent">{{ c.email or '-' }}</span>
-                        </div>
-                        <div class="text-secondary-custom">
-                            Notas:
-                            <span class="text-accent">{{ c.notes or '-' }}</span>
-                        </div>
-                        <div class="mt-2 text-end">
-                            <form method="post"
-                                  action="{{ url_for('delete_client', client_id=c.id) }}"
-                                  class="d-inline">
-                                <button type="submit"
+            <div class="table-responsive d-none d-md-block">
+                <table class="table table-dark table-striped table-sm align-middle mb-0">
+                    <thead>
+                        <tr class="text-center">
+                            <th>Nombre</th>
+                            <th>Teléfono</th>
+                            <th>Correo</th>
+                            <th>Notas</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in clients %}
+                        <tr>
+                            <td class="text-center">{{ c.name }}</td>
+                            <td class="text-center">{{ c.phone or '-' }}</td>
+                            <td class="text-center">{{ c.email or '-' }}</td>
+                            <td class="text-center">
+                                {% if c.notes %}{{ c.notes }}{% else %}-{% endif %}
+                            </td>
+                            <td class="text-center">
+                                <form
+                                    method="post"
+                                    action="{{ url_for('delete_client', client_id=c.id) }}"
+                                    class="d-inline"
+                                >
+                                    <button
+                                        type="submit"
                                         class="btn btn-sm btn-outline-danger"
-                                        onclick="return doubleConfirm('¿Eliminar este cliente?', 'No se borran las ventas, solo el cliente. ¿Confirmas?');">
-                                    <i class="bi bi-trash"></i> Eliminar
-                                </button>
-                            </form>
-                        </div>
+                                        onclick="return doubleConfirm('¿Eliminar este cliente?', 'No se eliminan ventas antiguas, solo el registro de cliente. ¿Confirmas?');"
+                                    >
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Versión móvil -->
+            <div class="d-block d-md-none mt-2">
+                {% for c in clients %}
+                <div class="border rounded-3 p-2 mb-2">
+                    <div class="fw-semibold text-accent text-center">{{ c.name }}</div>
+                    <div class="text-secondary-custom small text-center">
+                        Tel: {{ c.phone or '-' }}<br>
+                        Correo: {{ c.email or '-' }}
                     </div>
-                    {% endfor %}
+                    <div class="text-secondary-custom small text-center">
+                        Notas:
+                        {% if c.notes %}{{ c.notes }}{% else %}-{% endif %}
+                    </div>
+                    <div class="mt-1 text-center">
+                        <form
+                            method="post"
+                            action="{{ url_for('delete_client', client_id=c.id) }}"
+                            class="d-inline"
+                        >
+                            <button
+                                type="submit"
+                                class="btn btn-sm btn-outline-danger"
+                                onclick="return doubleConfirm('¿Eliminar este cliente?', 'No se eliminan ventas antiguas, solo el registro de cliente. ¿Confirmas?');"
+                            >
+                                <i class="bi bi-trash"></i> Eliminar
+                            </button>
+                        </form>
+                    </div>
                 </div>
+                {% endfor %}
+            </div>
             {% else %}
-                <p class="text-secondary-custom text-center mb-0">
-                    No hay clientes registrados todavía.
-                </p>
+            <p class="text-secondary-custom small mb-0 text-center">
+                Aún no has registrado clientes.
+            </p>
             {% endif %}
         </div>
     </div>
