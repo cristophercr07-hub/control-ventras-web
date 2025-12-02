@@ -1,244 +1,412 @@
 {% extends "base.html" %}
-{% block title %}Ventas{% endblock %}
+{% block title %}Ventas - Control de Ventas{% endblock %}
 
 {% block content %}
-<div class="card p-4 shadow-sm">
-    <h3 class="text-center text-accent mb-3">Registrar Venta</h3>
 
-    {% if error %}
-    <div class="alert alert-danger">{{ error }}</div>
-    {% endif %}
-    {% if success %}
-    <div class="alert alert-success">{{ success }}</div>
-    {% endif %}
+{% if error %}
+    <div class="alert alert-danger py-2 mb-3">{{ error }}</div>
+{% endif %}
+{% if success %}
+    <div class="alert alert-success py-2 mb-3">{{ success }}</div>
+{% endif %}
 
-    <form method="post" id="ventaForm">
-        <div class="row g-3">
+<!-- FORMULARIO NUEVA VENTA -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card-matrix">
+            <h2 class="mb-3">Registrar venta</h2>
+            <p class="text-secondary-custom text-center mb-3">
+                Selecciona un <b>cliente</b> y un <b>producto</b> del listado o escríbelos manualmente.
+                Agrega el costo, precio, cantidad y el estado de pago.
+            </p>
 
-            <!-- Fecha -->
-            <div class="col-md-3">
-                <label class="form-label">Fecha</label>
-                <div class="input-group">
-                    <span class="input-group-text date-icon">
-                        <i class="bi bi-calendar3"></i>
-                    </span>
-                    <input type="date" name="date" class="form-control" required>
-                </div>
-            </div>
-
-            <!-- Cliente -->
-            <div class="col-md-3">
-                <label class="form-label">Cliente</label>
-                <select name="client_id" class="form-select">
-                    <option value="">Escribir manual</option>
-                    {% for c in clients %}
-                        <option value="{{ c.id }}">{{ c.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Cliente manual -->
-            <div class="col-md-3">
-                <label class="form-label">Nombre Cliente (manual)</label>
-                <input type="text" name="name" class="form-control">
-            </div>
-
-            <!-- Producto -->
-            <div class="col-md-3">
-                <label class="form-label">Producto</label>
-                <select name="product_select" class="form-select">
-                    <option value="">Escribir manual</option>
-                    {% for p in products %}
-                        <option value="{{ p.name }}">{{ p.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Producto manual -->
-            <div class="col-md-3">
-                <label class="form-label">Producto (manual)</label>
-                <input type="text" name="product" class="form-control">
-            </div>
-
-            <!-- ESTADO -->
-            <div class="col-md-3">
-                <label class="form-label">Estado</label>
-                <select name="status" id="statusSelect" class="form-select">
-                    <option value="Pagado">Pagado</option>
-                    <option value="Pendiente">Pendiente</option>
-                </select>
-            </div>
-
-            <!-- TIPO DE PAGO -->
-            <div class="col-md-3">
-                <label class="form-label">Tipo de Pago</label>
-                <select name="payment_type" class="form-select">
-                    <option>Contado</option>
-                    <option>Transferencia</option>
-                    <option>Sinpe</option>
-                    <option>Sinpe Móvil</option>
-                </select>
-            </div>
-
-            <!-- COSTO / PRECIO / CANTIDAD -->
-            <div class="col-md-12">
-                <div class="row g-3 align-items-end">
-
-                    <div class="col-md-4">
-                        <label class="form-label">Costo por Unidad</label>
-                        <input type="number" step="0.01" name="cost_per_unit" class="form-control" required>
+            <form method="post" action="{{ url_for('ventas') }}">
+                <div class="row g-3">
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Fecha</label>
+                        <input
+                            type="date"
+                            name="date"
+                            class="form-control text-center"
+                            data-autotoday="1"
+                        >
                     </div>
 
-                    <div class="col-md-4">
-                        <label class="form-label">Precio por Unidad</label>
-                        <input type="number" step="0.01" name="price_per_unit" class="form-control" required>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Cliente (lista)</label>
+                        <select name="client_id" id="client_id" class="form-select text-center">
+                            <option value="">Sin seleccionar</option>
+                            {% for c in clients %}
+                                <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
 
-                    <div class="col-md-4">
-                        <label class="form-label">Cantidad</label>
-                        <input type="number" name="quantity" min="1" value="1" class="form-control" required>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Cliente (texto)</label>
+                        <input
+                            type="text"
+                            name="name"
+                            id="client_name_input"
+                            class="form-control text-center"
+                            placeholder="Ej: Cliente nuevo"
+                        >
                     </div>
 
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Estado</label>
+                        <select name="status" id="status" class="form-select text-center">
+                            <option value="Pagado">Pagado</option>
+                            <option value="Pendiente">Pendiente</option>
+                        </select>
+                    </div>
                 </div>
-            </div>
 
-            <!-- MONTO PAGADO -->
-            <div class="col-md-4">
-                <label class="form-label">Monto Pagado</label>
-                <input type="number" step="0.01" name="amount_paid" id="amountPaid" class="form-control" disabled>
-            </div>
+                <div class="row g-3 mt-3">
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Producto (lista)</label>
+                        <select name="product_select" id="product_select" class="form-select text-center">
+                            <option value="">Sin seleccionar</option>
+                            {% for p in products %}
+                                <option
+                                    value="{{ p.name }}"
+                                    data-cost="{{ p.cost or 0 }}"
+                                    data-price="{{ p.price or 0 }}"
+                                >
+                                    {{ p.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
 
-            <!-- FECHA LIMITE -->
-            <div class="col-md-4">
-                <label class="form-label">Fecha Límite</label>
-                <div class="input-group">
-                    <span class="input-group-text date-icon">
-                        <i class="bi bi-calendar3"></i>
-                    </span>
-                    <input type="date" name="due_date" id="dueDate" class="form-control" disabled>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Producto (texto)</label>
+                        <input
+                            type="text"
+                            name="product"
+                            id="product_input"
+                            class="form-control text-center"
+                            placeholder="Ej: Pedido especial"
+                        >
+                    </div>
+
+                    <div class="col-md-2 col-4">
+                        <label class="form-label text-secondary-custom">Costo unidad (₡)</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="cost_per_unit"
+                            id="cost_per_unit"
+                            class="form-control text-end"
+                            value="0"
+                        >
+                    </div>
+
+                    <div class="col-md-2 col-4">
+                        <label class="form-label text-secondary-custom">Precio unidad (₡)</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="price_per_unit"
+                            id="price_per_unit"
+                            class="form-control text-end"
+                            value="0"
+                        >
+                    </div>
+
+                    <div class="col-md-2 col-4">
+                        <label class="form-label text-secondary-custom">Cantidad</label>
+                        <input
+                            type="number"
+                            name="quantity"
+                            id="quantity"
+                            class="form-control text-end"
+                            min="1"
+                            value="1"
+                        >
+                    </div>
                 </div>
-            </div>
 
-            <!-- NOTAS -->
-            <div class="col-md-12">
-                <label class="form-label">Notas</label>
-                <textarea name="notes" rows="2" class="form-control"></textarea>
-            </div>
+                <div class="row g-3 mt-3 align-items-end" id="paymentRow">
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Tipo de pago</label>
+                        <select name="payment_type" class="form-select text-center">
+                            <option value="Contado">Contado</option>
+                            <option value="Transferencia">Transferencia</option>
+                            <option value="SINPE">SINPE</option>
+                            <option value="Tarjeta">Tarjeta</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
 
-            <!-- BOTÓN -->
-            <div class="col-md-12 text-center mt-3">
-                <button class="btn btn-primary px-4">Guardar Venta</button>
-            </div>
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Monto pagado (₡)</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="amount_paid"
+                            id="amount_paid"
+                            class="form-control text-end"
+                            value="0"
+                            disabled
+                        >
+                    </div>
 
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Fecha vencimiento</label>
+                        <input
+                            type="date"
+                            name="due_date"
+                            id="due_date"
+                            class="form-control text-center"
+                            disabled
+                        >
+                    </div>
+
+                    <div class="col-md-3 col-12">
+                        <label class="form-label text-secondary-custom">Notas</label>
+                        <input
+                            type="text"
+                            name="notes"
+                            class="form-control text-center"
+                            placeholder="Opcional"
+                        >
+                    </div>
+                </div>
+
+                <div class="text-end mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check2-circle me-1"></i> Guardar venta
+                    </button>
+                </div>
+            </form>
         </div>
-    </form>
-</div>
-
-<br>
-
-<!-- LISTADO DE VENTAS -->
-<div class="card p-4 shadow-sm">
-    <h3 class="text-center text-accent mb-3">Listado de Ventas</h3>
-
-    <!-- Filtros -->
-    <form class="row g-2 mb-3">
-        <div class="col-md-3">
-            <input type="text" name="filter_name" class="form-control" placeholder="Buscar cliente..." value="{{ filter_name }}">
-        </div>
-
-        <div class="col-md-3">
-            <select name="filter_status" class="form-select">
-                <option value="">Todos los estados</option>
-                <option value="Pagado" {% if filter_status=='Pagado' %}selected{% endif %}>Pagado</option>
-                <option value="Pendiente" {% if filter_status=='Pendiente' %}selected{% endif %}>Pendiente</option>
-            </select>
-        </div>
-
-        <div class="col-md-2">
-            <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
-        </div>
-
-        <div class="col-md-2">
-            <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
-        </div>
-
-        <div class="col-md-2">
-            <button class="btn btn-outline-light w-100">Filtrar</button>
-        </div>
-    </form>
-
-    <div class="table-responsive">
-        <table class="table table-dark table-striped text-center align-middle table-sm">
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Cliente</th>
-                    <th>Producto</th>
-                    <th>Total</th>
-                    <th>Pagado</th>
-                    <th>Pendiente</th>
-                    <th>Estado</th>
-                    <th>Acción</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for s in sales %}
-                <tr>
-                    <td>{{ s.date }}</td>
-                    <td>{{ s.name }}</td>
-                    <td>{{ s.product }}</td>
-                    <td>₡{{ s.total|format_num }}</td>
-                    <td>₡{{ s.amount_paid|format_num }}</td>
-                    <td>₡{{ s.pending_amount|format_num }}</td>
-                    <td>{{ s.status }}</td>
-                    <td>
-                        <form method="post" action="{{ url_for('delete_sale', sale_id=s.id) }}" onsubmit="return confirm('¿Eliminar venta?')">
-                            <button class="btn btn-sm btn-danger">
-                                <i class="bi bi-trash3"></i>
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
     </div>
 </div>
 
+<!-- FILTROS + RESUMEN -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card-matrix-soft">
+            <div class="row g-3 align-items-end mb-3">
+                <div class="col-md-3 col-6">
+                    <label class="form-label text-secondary-custom">Nombre / cliente</label>
+                    <form method="get" action="{{ url_for('ventas') }}">
+                        <input
+                            type="text"
+                            name="filter_name"
+                            class="form-control text-center mb-2"
+                            value="{{ filter_name or '' }}"
+                            placeholder="Filtrar por cliente"
+                        >
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label text-secondary-custom">Desde</label>
+                                <input
+                                    type="date"
+                                    name="date_from"
+                                    class="form-control text-center"
+                                    value="{{ date_from or '' }}"
+                                >
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-secondary-custom">Hasta</label>
+                                <input
+                                    type="date"
+                                    name="date_to"
+                                    class="form-control text-center"
+                                    value="{{ date_to or '' }}"
+                                >
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-2">
+                            <div class="col-6">
+                                <select name="filter_status" class="form-select text-center">
+                                    <option value="" {% if not filter_status %}selected{% endif %}>Todos</option>
+                                    <option value="Pagado" {% if filter_status == 'Pagado' %}selected{% endif %}>Pagado</option>
+                                    <option value="Pendiente" {% if filter_status == 'Pendiente' %}selected{% endif %}>Pendiente</option>
+                                </select>
+                            </div>
+                            <div class="col-6 d-grid">
+                                <button type="submit" class="btn btn-primary btn-sm mb-1">
+                                    <i class="bi bi-funnel me-1"></i> Filtrar
+                                </button>
+                                <a href="{{ url_for('ventas') }}" class="btn btn-outline-light btn-sm">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="col-md-9 col-12">
+                    <div class="row g-2">
+                        <div class="col-6 col-md-3">
+                            <div class="frame-box text-center">
+                                <div class="frame-box-label">Ventas</div>
+                                <div class="highlight-number">{{ total_ventas }}</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="frame-box text-center">
+                                <div class="frame-box-label">Total facturado</div>
+                                <div class="highlight-number">
+                                    ₡{{ total_monto|format_num }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="frame-box text-center">
+                                <div class="frame-box-label">Ganancia total</div>
+                                <div class="highlight-number">
+                                    ₡{{ total_ganancia|format_num }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="frame-box text-center">
+                                <div class="frame-box-label">Pendiente de cobro</div>
+                                <div class="highlight-number">
+                                    ₡{{ total_pendiente|format_num }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-end mt-3">
+                        <a
+                            class="btn btn-outline-light btn-sm"
+                            href="{{ url_for('ventas_export',
+                                             filter_name=filter_name,
+                                             filter_status=filter_status,
+                                             date_from=date_from,
+                                             date_to=date_to) }}"
+                        >
+                            <i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TABLA DE VENTAS -->
+            {% if sales and sales|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-striped table-sm align-middle">
+                        <thead>
+                            <tr class="text-center">
+                                <th>Fecha</th>
+                                <th>Cliente</th>
+                                <th>Producto</th>
+                                <th>Cant.</th>
+                                <th>Precio u. (₡)</th>
+                                <th>Total (₡)</th>
+                                <th>Ganancia (₡)</th>
+                                <th>Estado</th>
+                                <th>Pagado (₡)</th>
+                                <th>Pendiente (₡)</th>
+                                <th>Vence</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in sales %}
+                                <tr>
+                                    <td class="text-center">{{ s.date }}</td>
+                                    <td class="text-center">{{ s.name }}</td>
+                                    <td class="text-center">{{ s.product }}</td>
+                                    <td class="text-center">{{ s.quantity }}</td>
+                                    <td class="text-end">{{ "%.2f"|format(s.price_per_unit or 0) }}</td>
+                                    <td class="text-end highlight-number">{{ "%.2f"|format(s.total or 0) }}</td>
+                                    <td class="text-end">{{ "%.2f"|format(s.profit or 0) }}</td>
+                                    <td class="text-center">
+                                        {% if s.status == 'Pagado' %}
+                                            <span class="badge bg-success">Pagado</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">Pendiente</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">{{ "%.2f"|format(s.amount_paid or 0) }}</td>
+                                    <td class="text-end">{{ "%.2f"|format(s.pending_amount or 0) }}</td>
+                                    <td class="text-center">{{ s.due_date or "-" }}</td>
+                                    <td class="text-center">
+                                        <form method="post"
+                                              action="{{ url_for('delete_sale', sale_id=s.id) }}"
+                                              class="d-inline">
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-outline-danger"
+                                                    onclick="return doubleConfirm('¿Eliminar esta venta?', 'Esta acción no se puede deshacer. ¿Confirmas?');">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-secondary-custom mb-0 text-center">
+                    No hay ventas en el rango seleccionado.
+                </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-    const statusSelect = document.getElementById("statusSelect");
-    const amountPaid = document.getElementById("amountPaid");
-    const dueDate = document.getElementById("dueDate");
+document.addEventListener("DOMContentLoaded", function() {
+    const statusSelect = document.getElementById("status");
+    const amountPaidInput = document.getElementById("amount_paid");
+    const dueDateInput = document.getElementById("due_date");
+    const clientSelect = document.getElementById("client_id");
+    const clientNameInput = document.getElementById("client_name_input");
+    const productSelect = document.getElementById("product_select");
+    const productInput = document.getElementById("product_input");
+    const costInput = document.getElementById("cost_per_unit");
+    const priceInput = document.getElementById("price_per_unit");
 
-    function togglePending() {
-        const isPending = statusSelect.value === "Pendiente";
-        amountPaid.disabled = !isPending;
-        dueDate.disabled = !isPending;
-
-        if (!isPending) {
-            amountPaid.value = "";
-            dueDate.value = "";
+    function updatePaymentFields() {
+        if (!statusSelect) return;
+        const status = statusSelect.value;
+        const isPending = status === "Pendiente";
+        if (amountPaidInput) {
+            amountPaidInput.disabled = !isPending;
+            if (!isPending) amountPaidInput.value = 0;
+        }
+        if (dueDateInput) {
+            dueDateInput.disabled = !isPending;
+            if (!isPending) dueDateInput.value = "";
         }
     }
 
-    statusSelect.addEventListener("change", togglePending);
-    togglePending();
+    if (statusSelect) {
+        statusSelect.addEventListener("change", updatePaymentFields);
+        updatePaymentFields();
+    }
+
+    if (clientSelect && clientNameInput) {
+        clientSelect.addEventListener("change", function() {
+            const selectedOption = clientSelect.options[clientSelect.selectedIndex];
+            if (clientSelect.value) {
+                clientNameInput.value = selectedOption.text;
+            }
+        });
+    }
+
+    if (productSelect && productInput && costInput && priceInput) {
+        productSelect.addEventListener("change", function() {
+            const opt = productSelect.options[productSelect.selectedIndex];
+            if (!opt || !productSelect.value) return;
+            productInput.value = opt.value;
+            const cost = opt.getAttribute("data-cost") || "0";
+            const price = opt.getAttribute("data-price") || "0";
+            costInput.value = cost;
+            priceInput.value = price;
+        });
+    }
 });
 </script>
-
-<style>
-/* Date icon white and modern */
-.date-icon {
-    background: #333;
-    color: #fff;
-    border: 1px solid #444;
-}
-
-.date-icon i {
-    font-size: 1.1rem;
-}
-</style>
-
 {% endblock %}
