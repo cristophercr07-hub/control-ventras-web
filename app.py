@@ -17,29 +17,34 @@ from flask import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+import pandas as pd
 
 # ---------------------------------------------------------
-# CONFIGURACIÓN BÁSICA
+# CONFIGURACIÓN BÁSICA Y SEGURA
 # ---------------------------------------------------------
-
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "cambiar_esto_por_un_valor_mas_seguro"
 
-db_path = os.path.join(BASE_DIR, "database.db")
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+# SECRET_KEY desde variable de entorno (seguro en Render)
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "cambia-esta-clave-en-produccion")
+
+# Soporte para DATABASE_URL de Render / Heroku
+database_url = os.environ.get("DATABASE_URL") or "sqlite:///ventas.db"
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# Cambia a False en producción
-app.config["DEBUG"] = True
+# Cookies de sesión más seguras
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "true").lower() == "true"
+
+# Debug controlado por variable de entorno
+app.config["DEBUG"] = os.environ.get("FLASK_DEBUG", "0") == "1"
 
 db = SQLAlchemy(app)
-
-
-# ---------------------------------------------------------
-# CONSTANTES / CONFIGURACIONES
-# ---------------------------------------------------------
 
 # Margen mínimo de utilidad para la calculadora (ahora sin límite: 0 %)
 MIN_MARGIN_PERCENT = 0.0
@@ -55,202 +60,197 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
 
-    def check_password(self, password_plain: str) -> bool:
-        return check_password_hash(self.password_hash, password_plain)
+    def check_password(self, password: str) -> bool:
+        return check_password_hash(self.password_hash, password)
 
 
 class Client(db.Model):
-    """
-    Modelo de clientes para asociar ventas a clientes registrados.
-    """
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
     name = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(50))
     email = db.Column(db.String(120))
-    address = db.Column(db.String(255))
     notes = db.Column(db.String(255))
 
 
 class Product(db.Model):
-    """
-    Modelo de productos para catálogo de precios.
-    """
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), unique=True, nullable=False)
-    description = db.Column(db.String(255))
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    name = db.Column(db.String(120), nullable=False)
     cost = db.Column(db.Float, default=0.0)
     price = db.Column(db.Float, default=0.0)
+    margin_percent = db.Column(db.Float, default=0.0)
 
 
 class Sale(db.Model):
-    """
-    Modelo de ventas principales.
-    """
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    date = db.Column(db.Date, default=datetime.date.today, nullable=False)
-    name = db.Column(db.String(120), nullable=False)  # Nombre del cliente
-    product = db.Column(db.String(255), nullable=False)
-    status = db.Column(db.String(20), default="Pagado")  # Pagado o Pendiente
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    date = db.Column(db.Date, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="Pagado")
+
+    # Datos comerciales
+    name = db.Column(db.String(120), nullable=False)           # Cliente (texto libre)
+    product = db.Column(db.String(120), nullable=False)        # Nombre de producto (texto)
+
     cost_per_unit = db.Column(db.Float, default=0.0)
     price_per_unit = db.Column(db.Float, default=0.0)
     quantity = db.Column(db.Integer, default=1)
+
     total = db.Column(db.Float, default=0.0)
     profit = db.Column(db.Float, default=0.0)
-    payment_type = db.Column(db.String(50), default="Contado")
+
+    # Pagos
+    payment_type = db.Column(db.String(50), default="Contado")  # Contado / Transferencia / Sinpe / etc.
     amount_paid = db.Column(db.Float, default=0.0)
     pending_amount = db.Column(db.Float, default=0.0)
-    due_date = db.Column(db.Date, nullable=True)  # Fecha de vencimiento
-    notes = db.Column(db.String(255))  # Comentarios
-    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=True)
+    due_date = db.Column(db.Date)
 
-    user = db.relationship("User", backref=db.backref("sales", lazy=True))
-    client = db.relationship("Client", backref=db.backref("sales", lazy=True))
+    notes = db.Column(db.String(255))  # Comentarios
+
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"))
 
 
 class Expense(db.Model):
-    """
-    Modelo de gastos para control de flujo.
-    """
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    date = db.Column(db.Date, default=datetime.date.today, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    date = db.Column(db.Date, nullable=False)
     description = db.Column(db.String(255), nullable=False)
-    category = db.Column(db.String(100), nullable=False)
+    category = db.Column(db.String(20), nullable=False)  # Gasto / Reinversión
     amount = db.Column(db.Float, default=0.0)
 
-    user = db.relationship("User", backref=db.backref("expenses", lazy=True))
-
-
-# Crear todas las tablas si no existen (después de definir los modelos)
-with app.app_context():
-    db.create_all()
-
 
 # ---------------------------------------------------------
-# FILTROS JINJA PERSONALIZADOS
+# UTILIDADES / HELPERS
 # ---------------------------------------------------------
 
-@app.template_filter("format_num")
-def format_num(value):
-    """
-    Formatea números con separador de miles y 2 decimales (formato latino).
-    Ejemplo: 12345.6 -> '12.345,60'
-    """
-    try:
-        value = float(value or 0)
-    except (TypeError, ValueError):
-        return "0,00"
-    # 12,345.67 -> 12.345,67
-    s = f"{value:,.2f}"
-    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
-    return s
-
-
-# ---------------------------------------------------------
-# FUNCIONES AUXILIARES Y DECORADORES
-# ---------------------------------------------------------
-
-def login_required(f):
-    """
-    Decorador para requerir que el usuario esté autenticado.
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if "user_id" not in session:
-            return redirect(url_for("login", next=request.url))
-        return f(*args, **kwargs)
-
-    return decorated_function
-
-
-def current_user():
-    """
-    Devuelve el usuario actual logueado o None.
-    """
-    user_id = session.get("user_id")
-    if not user_id:
-        return None
-    return User.query.get(user_id)
-
-
-def parse_date(date_str: str):
-    """
-    Parsea fechas en formato YYYY-MM-DD. Devuelve None si falla.
-    """
-    if not date_str:
+def parse_date(value):
+    if not value:
         return None
     try:
-        year, month, day = map(int, date_str.split("-"))
-        return datetime.date(year, month, day)
+        return datetime.date.fromisoformat(value)
     except Exception:
         return None
 
 
+def current_user():
+    """Devuelve el objeto User logueado o None."""
+    uid = session.get("user_id")
+    if not uid:
+        return None
+    return User.query.get(uid)
+
+
+def login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get("user_id"):
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def admin_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        user = current_user()
+        if not user or not user.is_admin:
+            # No autorizado: redirigir a dashboard
+            return redirect(url_for("dashboard"))
+        return f(*args, **kwargs)
+    return wrapper
+
+
 def query_for(model):
     """
-    Helper para hacer query ordenada por ID descendente (últimos primero).
+    Devuelve un query filtrado por usuario.
+    - Admin: ve todo.
+    - Usuario normal: solo sus propios registros.
     """
-    return db.session.query(model).order_by(model.id.desc())
+    user = current_user()
+    if not user:
+        # Sin usuario, no debería ocurrir con login_required
+        return model.query.filter(False)
+
+    if user.is_admin:
+        return model.query
+
+    # Usuario normal
+    return model.query.filter_by(user_id=user.id)
 
 
 # ---------------------------------------------------------
-# RUTAS DE AUTENTICACIÓN
+# FILTROS Y CONTEXTO JINJA
 # ---------------------------------------------------------
 
-@app.route("/init_admin")
-def init_admin():
-    """
-    Crea un usuario admin por defecto (admin / admin) si no existen usuarios.
-    """
-    if User.query.first():
-        return "Ya existe al menos un usuario."
-    admin = User(
-        username="admin",
-        password_hash=generate_password_hash("admin"),
-        is_admin=True,
+@app.template_filter("format_num")
+def format_num_filter(value):
+    """Formatea números para mostrarlos como montos en CRC (miles con punto, sin decimales)."""
+    try:
+        n = float(value or 0)
+    except (TypeError, ValueError):
+        n = 0.0
+    s = f"{n:,.0f}"
+    return s.replace(",", ".")
+
+
+@app.template_filter("zip")
+def zip_filter(a, b):
+    """Permite usar week_labels|zip(week_values) si quedara en alguna plantilla."""
+    return zip(a or [], b or [])
+
+
+@app.context_processor
+def inject_globals():
+    from datetime import date as _date
+    return dict(
+        current_user=current_user,
+        date=_date,  # para plantillas que usaban date()
     )
-    db.session.add(admin)
-    db.session.commit()
-    return "Usuario admin creado: admin / admin"
 
 
-@app.route("/reset_admin")
-def reset_admin():
-    """
-    Fuerza la existencia de un usuario admin con contraseña admin/admin.
-    Usar solo para inicialización; luego se puede eliminar o proteger.
-    """
-    admin = User.query.filter_by(username="admin").first()
-    if not admin:
+# ---------------------------------------------------------
+# INICIALIZACIÓN DE LA BD Y USUARIO ADMIN
+# ---------------------------------------------------------
+
+with app.app_context():
+    db.create_all()
+    # Crear usuario admin por defecto si no existe
+    if not User.query.filter_by(username="admin").first():
         admin = User(
             username="admin",
+            password_hash=generate_password_hash("admin"),  # cámbialo en producción
             is_admin=True,
-            password_hash=generate_password_hash("admin"),
         )
         db.session.add(admin)
-    else:
-        admin.is_admin = True
-        admin.password_hash = generate_password_hash("admin")
+        db.session.commit()
 
-    db.session.commit()
-    return "Usuario admin reseteado: admin / admin"
 
+# ---------------------------------------------------------
+# AUTENTICACIÓN
+# ---------------------------------------------------------
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    if session.get("user_id"):
+        return redirect(url_for("dashboard"))
+
     error = None
     if request.method == "POST":
-        username = request.form.get("username") or ""
+        username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
 
         user = User.query.filter_by(username=username).first()
-        if not user or not user.check_password(password):
-            error = "Usuario o contraseña inválidos."
-        else:
+        if user and user.check_password(password):
             session["user_id"] = user.id
-            next_url = request.args.get("next") or url_for("dashboard")
-            return redirect(next_url)
+            session["user"] = user.username
+            session["is_admin"] = bool(user.is_admin)
+            return redirect(url_for("dashboard"))
+        else:
+            error = "Usuario o contraseña incorrectos."
 
     return render_template("login.html", error=error)
 
@@ -262,254 +262,353 @@ def logout():
 
 
 # ---------------------------------------------------------
-# RUTAS PRINCIPALES
-# ---------------------------------------------------------
-
-@app.route("/")
-@login_required
-def dashboard():
-    """
-    Dashboard principal con resumen de ventas y gastos.
-    """
-    user = current_user()
-    today = datetime.date.today()
-    first_day_month = today.replace(day=1)
-
-    sales = query_for(Sale).filter(Sale.date >= first_day_month).all()
-    expenses = query_for(Expense).filter(Expense.date >= first_day_month).all()
-
-    total_sales = sum(s.total or 0 for s in sales)
-    total_profit = sum(s.profit or 0 for s in sales)
-    total_expenses = sum(e.amount or 0 for e in expenses)
-
-    balance = total_profit - total_expenses
-
-    # Agrupación diaria para gráficos
-    daily_sales = defaultdict(float)
-    daily_profit = defaultdict(float)
-    daily_expenses = defaultdict(float)
-
-    for s in sales:
-        daily_sales[s.date] += s.total or 0
-        daily_profit[s.date] += s.profit or 0
-
-    for e in expenses:
-        daily_expenses[e.date] += e.amount or 0
-
-    # Fechas ordenadas
-    date_list = sorted(set(list(daily_sales.keys()) + list(daily_expenses.keys())))
-    chart_labels = [d.strftime("%d-%m") for d in date_list]
-    chart_sales = [round(daily_sales[d], 2) for d in date_list]
-    chart_profit = [round(daily_profit[d], 2) for d in date_list]
-    chart_expenses = [round(daily_expenses[d], 2) for d in date_list]
-
-    # Ventas recientes
-    recent_sales = query_for(Sale).limit(10).all()
-
-    return render_template(
-        "dashboard.html",
-        user=user,
-        total_sales=total_sales,
-        total_profit=total_profit,
-        total_expenses=total_expenses,
-        balance=balance,
-        chart_labels=chart_labels,
-        chart_sales=chart_sales,
-        chart_profit=chart_profit,
-        chart_expenses=chart_expenses,
-        recent_sales=recent_sales,
-    )
-
-
-# ---------------------------------------------------------
-# RUTAS DE USUARIOS (ADMIN)
+# GESTIÓN DE USUARIOS (SOLO ADMIN)
 # ---------------------------------------------------------
 
 @app.route("/usuarios", methods=["GET", "POST"])
 @login_required
+@admin_required
 def usuarios():
-    user = current_user()
-    if not user.is_admin:
-        flash("No tienes permisos para administrar usuarios.", "danger")
-        return redirect(url_for("dashboard"))
-
     error = None
     success = None
 
     if request.method == "POST":
-        try:
+        action = request.form.get("action") or "create"
+
+        # Crear usuario
+        if action == "create":
             username = (request.form.get("username") or "").strip()
-            password = (request.form.get("password") or "").strip()
+            password = request.form.get("password") or ""
             is_admin = bool(request.form.get("is_admin"))
 
             if not username or not password:
-                raise ValueError("Usuario y contraseña son obligatorios.")
+                error = "Usuario y contraseña son obligatorios."
+            else:
+                existing = User.query.filter_by(username=username).first()
+                if existing:
+                    error = "Ya existe un usuario con ese nombre."
+                else:
+                    new_user = User(
+                        username=username,
+                        password_hash=generate_password_hash(password),
+                        is_admin=is_admin,
+                    )
+                    db.session.add(new_user)
+                    db.session.commit()
+                    success = "Usuario creado correctamente."
 
-            existing = User.query.filter_by(username=username).first()
-            if existing:
-                raise ValueError("Ya existe un usuario con ese nombre.")
+        # Cambiar contraseña de un usuario (desde dentro, solo admin)
+        elif action == "change_password":
+            user_id = request.form.get("user_id")
+            new_password = request.form.get("new_password") or ""
+            if not user_id or not new_password:
+                error = "Debes seleccionar un usuario y una nueva contraseña."
+            else:
+                u = User.query.get(int(user_id))
+                if not u:
+                    error = "Usuario no encontrado."
+                else:
+                    u.password_hash = generate_password_hash(new_password)
+                    db.session.commit()
+                    success = f"Contraseña actualizada para {u.username}."
 
-            new_user = User(
-                username=username,
-                password_hash=generate_password_hash(password),
-                is_admin=is_admin,
-            )
-            db.session.add(new_user)
-            db.session.commit()
-            success = "Usuario creado correctamente."
-        except Exception as e:
-            error = str(e)
-
-    users = User.query.order_by(User.id.asc()).all()
-    return render_template("usuarios.html", users=users, error=error, success=success)
+    users = User.query.order_by(User.username).all()
+    return render_template(
+        "usuarios.html",
+        users=users,
+        error=error,
+        success=success,
+    )
 
 
 @app.post("/usuarios/<int:user_id>/delete")
 @login_required
+@admin_required
 def delete_user(user_id):
-    user = current_user()
-    if not user.is_admin:
-        flash("No tienes permisos para eliminar usuarios.", "danger")
-        return redirect(url_for("usuarios"))
-
-    if user.id == user_id:
+    """
+    Elimina un usuario (solo admin).
+    No permite que el usuario actual se elimine a sí mismo.
+    """
+    u = User.query.get_or_404(user_id)
+    me = current_user()
+    if me and me.id == u.id:
         flash("No puedes eliminar tu propio usuario.", "danger")
         return redirect(url_for("usuarios"))
 
-    u = User.query.get_or_404(user_id)
     db.session.delete(u)
     db.session.commit()
-    flash("Usuario eliminado.", "success")
+    flash(f"Usuario {u.username} eliminado correctamente.", "success")
     return redirect(url_for("usuarios"))
 
 
 # ---------------------------------------------------------
-# RUTAS DE CLIENTES
+# RUTA RAÍZ
+# ---------------------------------------------------------
+
+@app.route("/")
+def index():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    return redirect(url_for("dashboard"))
+
+
+# ---------------------------------------------------------
+# CLIENTES
 # ---------------------------------------------------------
 
 @app.route("/clientes", methods=["GET", "POST"])
 @login_required
 def clientes():
     error = None
-    success = request.args.get("success")
+    success = None
+    user = current_user()
 
     if request.method == "POST":
         try:
             name = (request.form.get("name") or "").strip()
             phone = (request.form.get("phone") or "").strip()
             email = (request.form.get("email") or "").strip()
-            address = (request.form.get("address") or "").strip()
             notes = (request.form.get("notes") or "").strip()
 
             if not name:
                 raise ValueError("El nombre del cliente es obligatorio.")
 
-            client = Client(
+            c = Client(
+                user_id=user.id,
                 name=name,
                 phone=phone,
                 email=email,
-                address=address,
                 notes=notes,
             )
-            db.session.add(client)
+            db.session.add(c)
             db.session.commit()
-            success = "Cliente guardado correctamente."
+            success = "Cliente creado correctamente."
         except Exception as e:
-            error = str(e)
+            error = f"Error al guardar el cliente: {e}"
 
-    # Filtro de nombre
-    filter_name = request.args.get("filter_name") or ""
-    query = query_for(Client)
-    if filter_name:
-        like_pattern = f"%{filter_name}%"
-        query = query.filter(Client.name.ilike(like_pattern))
+    # Admin ve todos, usuario solo los suyos (query_for se encarga)
+    clients_query = query_for(Client)
+    clients = clients_query.order_by(Client.name).all()
 
-    clients = query.order_by(Client.name.asc()).all()
     return render_template(
         "clientes.html",
+        clients=clients,
         error=error,
         success=success,
-        clients=clients,
-        filter_name=filter_name,
     )
 
 
 @app.post("/clientes/<int:client_id>/delete")
 @login_required
 def delete_client(client_id):
-    client = Client.query.get_or_404(client_id)
+    q = query_for(Client)
+    client = q.filter_by(id=client_id).first_or_404()
     db.session.delete(client)
     db.session.commit()
-    return redirect(url_for("clientes", success="Cliente eliminado correctamente."))
+    return redirect(url_for("clientes"))
 
 
 # ---------------------------------------------------------
-# RUTAS DE PRODUCTOS
+# ENDPOINT OPCIONES PARA FORMULARIO DE VENTAS (ATAJO)
+# ---------------------------------------------------------
+
+@app.get("/api/opciones_venta")
+@login_required
+def opciones_venta():
+    """
+    Devuelve en JSON la lista de clientes y productos del usuario (o de todos si es admin),
+    para autocompletar / selects en la pantalla de ventas.
+    """
+    clients = query_for(Client).order_by(Client.name).all()
+    products = query_for(Product).order_by(Product.name).all()
+
+    return jsonify(
+        {
+            "clients": [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "phone": c.phone,
+                    "email": c.email,
+                }
+                for c in clients
+            ],
+            "products": [
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "cost": p.cost,
+                    "price": p.price,
+                    "margin_percent": p.margin_percent,
+                }
+                for p in products
+            ],
+        }
+    )
+
+
+# ---------------------------------------------------------
+# PRODUCTOS + CALCULADORA
 # ---------------------------------------------------------
 
 @app.route("/productos", methods=["GET", "POST"])
 @login_required
 def productos():
     error = None
-    success = request.args.get("success")
+    success = None
+    user = current_user()
+
+    # Valores por defecto para la calculadora
+    product_name_input = ""
+    cost_input = ""
+    margin_input = f"{MIN_MARGIN_PERCENT:.2f}"
+    quantity_input = "1"
+    price_result = None
+    profit_unit = None
+    profit_total = None
+    margin_used = None
 
     if request.method == "POST":
-        try:
-            name = (request.form.get("name") or "").strip()
-            description = (request.form.get("description") or "").strip()
-            cost = float(request.form.get("cost") or 0)
-            price = float(request.form.get("price") or 0)
+        form_type = (request.form.get("form_type") or "calculator").strip()
 
-            if not name:
-                raise ValueError("El nombre del producto es obligatorio.")
-            if cost < 0 or price < 0:
-                raise ValueError("Costos y precios no pueden ser negativos.")
+        # --- LÓGICA DE CALCULADORA ---
+        if form_type == "calculator":
+            try:
+                product_name_input = (request.form.get("product_name") or "").strip()
+                cost_input = request.form.get("cost") or "0"
+                margin_input = request.form.get("margin") or f"{MIN_MARGIN_PERCENT:.2f}"
+                quantity_input = request.form.get("quantity") or "1"
+                save_to_catalog = bool(request.form.get("save_to_catalog"))
 
-            existing = Product.query.filter_by(name=name).first()
-            if existing:
-                raise ValueError("Ya existe un producto con ese nombre.")
+                cost = float(cost_input or 0)
+                margin = float(margin_input or 0)  # sin límite mínimo
+                quantity = int(quantity_input or 1)
 
-            product = Product(
-                name=name,
-                description=description,
-                cost=cost,
-                price=price,
-            )
-            db.session.add(product)
-            db.session.commit()
-            success = "Producto agregado correctamente."
-        except Exception as e:
-            error = str(e)
+                if cost <= 0:
+                    raise ValueError("El costo debe ser mayor que cero.")
+                if quantity <= 0:
+                    raise ValueError("La cantidad debe ser mayor que cero.")
 
-    # Filtro de nombre
-    filter_name = request.args.get("filter_name") or ""
-    query = query_for(Product)
-    if filter_name:
-        like_pattern = f"%{filter_name}%"
-        query = query.filter(Product.name.ilike(like_pattern))
+                price_result = cost * (1 + margin / 100.0)
+                profit_unit = price_result - cost
+                profit_total = profit_unit * quantity
+                margin_used = (profit_unit / cost * 100.0) if cost > 0 else 0.0
 
-    products = query.order_by(Product.name.asc()).all()
+                if save_to_catalog:
+                    if not product_name_input:
+                        raise ValueError("Para guardar en el catálogo debes indicar un nombre de producto.")
+                    existing = query_for(Product).filter_by(
+                        name=product_name_input
+                    ).first()
+                    if existing:
+                        existing.cost = cost
+                        existing.price = price_result
+                        existing.margin_percent = margin_used
+                    else:
+                        p = Product(
+                            user_id=user.id,
+                            name=product_name_input,
+                            cost=cost,
+                            price=price_result,
+                            margin_percent=margin_used,
+                        )
+                        db.session.add(p)
+                    db.session.commit()
+                    success = "Producto guardado/actualizado en el catálogo."
+            except Exception as e:
+                error = f"Error en la calculadora: {e}"
+
+        # --- LÓGICA DE FORMULARIO DIRECTO DE CATÁLOGO ---
+        elif form_type == "catalog":
+            try:
+                name = (request.form.get("name") or "").strip()
+                cost = float(request.form.get("cost") or 0)
+                price = float(request.form.get("price") or 0)
+
+                if not name:
+                    raise ValueError("El nombre del producto es obligatorio.")
+
+                margin_percent = 0.0
+                if cost > 0:
+                    margin_percent = (price - cost) / cost * 100.0
+
+                existing = query_for(Product).filter_by(name=name).first()
+                if existing:
+                    existing.cost = cost
+                    existing.price = price
+                    existing.margin_percent = margin_percent
+                    db.session.commit()
+                    success = "Producto actualizado correctamente."
+                else:
+                    p = Product(
+                        user_id=user.id,
+                        name=name,
+                        cost=cost,
+                        price=price,
+                        margin_percent=margin_percent,
+                    )
+                    db.session.add(p)
+                    db.session.commit()
+                    success = "Producto creado correctamente."
+            except Exception as e:
+                error = f"Error al guardar el producto: {e}"
+
+    products = query_for(Product).order_by(Product.name).all()
     return render_template(
         "productos.html",
+        products=products,
         error=error,
         success=success,
-        products=products,
-        filter_name=filter_name,
+        min_margin=MIN_MARGIN_PERCENT,
+        product_name_input=product_name_input,
+        cost_input=cost_input,
+        margin_input=margin_input,
+        quantity_input=quantity_input,
+        price_result=price_result,
+        profit_unit=profit_unit,
+        profit_total=profit_total,
+        margin_used=margin_used,
     )
 
 
 @app.post("/productos/<int:product_id>/delete")
 @login_required
 def delete_product(product_id):
-    product = Product.query.get_or_404(product_id)
+    q = query_for(Product)
+    product = q.filter_by(id=product_id).first_or_404()
     db.session.delete(product)
     db.session.commit()
-    return redirect(url_for("productos", success="Producto eliminado correctamente."))
+    return redirect(url_for("productos"))
+
+
+@app.route("/calculadora", methods=["GET", "POST"])
+@login_required
+def calculadora():
+    # Siempre usamos la pantalla fusionada de productos + calculadora
+    return redirect(url_for("productos"))
 
 
 # ---------------------------------------------------------
-# RUTA DE VENTAS
+# VENTAS
 # ---------------------------------------------------------
+
+def apply_sales_filters(query, filter_name, filter_status, date_from_str, date_to_str):
+    if filter_name:
+        like_pattern = f"%{filter_name}%"
+        query = query.filter(Sale.name.ilike(like_pattern))
+
+    if filter_status:
+        query = query.filter(Sale.status == filter_status)
+
+    date_from = parse_date(date_from_str)
+    date_to = parse_date(date_to_str)
+    if date_from:
+        query = query.filter(Sale.date >= date_from)
+    if date_to:
+        query = query.filter(Sale.date <= date_to)
+
+    return query
+
 
 @app.route("/ventas", methods=["GET", "POST"])
 @login_required
@@ -529,12 +628,13 @@ def ventas():
             if client_id:
                 client_obj = query_for(Client).filter_by(id=int(client_id)).first()
 
-            # Nombre del cliente (texto libre)
-            name = (request.form.get("client_name") or "").strip()
-            if client_obj and not name:
+            name_text = (request.form.get("name") or "").strip()
+            if client_obj:
                 name = client_obj.name
+            else:
+                name = name_text
 
-            product_from_select = request.form.get("product_from_select") or ""
+            product_from_select = (request.form.get("product_select") or "").strip()
             product_input = (request.form.get("product") or "").strip()
             product = product_input or product_from_select
 
@@ -557,19 +657,9 @@ def ventas():
             if quantity <= 0:
                 raise ValueError("La cantidad debe ser mayor que cero.")
 
-            # Cálculos base
             total = price_per_unit * quantity
             profit = (price_per_unit - cost_per_unit) * quantity
-
-            # Ajuste de montos según el estado de la venta
-            if status == "Pagado":
-                # Si la venta es Pagada y no se indicó monto, asumimos que se pagó todo
-                if amount_paid <= 0:
-                    amount_paid = total
-                pending_amount = 0.0
-            else:
-                # Venta pendiente: lo pendiente es total - lo pagado
-                pending_amount = max(total - amount_paid, 0.0)
+            pending_amount = max(total - amount_paid, 0.0)
 
             sale = Sale(
                 user_id=user.id,
@@ -595,30 +685,15 @@ def ventas():
         except Exception as e:
             error = f"Error al guardar la venta: {e}"
 
-    # Filtros de búsqueda
+    # Filtros (GET)
     filter_name = request.args.get("filter_name") or ""
     filter_status = request.args.get("filter_status") or ""
     date_from = request.args.get("date_from") or ""
     date_to = request.args.get("date_to") or ""
 
     query = query_for(Sale)
-
-    if filter_name:
-        like_pattern = f"%{filter_name}%"
-        query = query.filter(Sale.name.ilike(like_pattern))
-
-    if filter_status:
-        query = query.filter_by(status=filter_status)
-
-    d_from = parse_date(date_from)
-    d_to = parse_date(date_to)
-
-    if d_from:
-        query = query.filter(Sale.date >= d_from)
-    if d_to:
-        query = query.filter(Sale.date <= d_to)
-
-    sales = query.all()
+    query = apply_sales_filters(query, filter_name, filter_status, date_from, date_to)
+    sales = query.order_by(Sale.date.desc(), Sale.id.desc()).all()
 
     # Totales
     total_ventas = len(sales)
@@ -659,38 +734,6 @@ def delete_sale(sale_id):
     return redirect(url_for("ventas", success="Venta eliminada correctamente."))
 
 
-@app.post("/ventas/<int:sale_id>/update_amount_paid")
-@login_required
-def update_sale_amount_paid(sale_id):
-    q = query_for(Sale)
-    sale = q.filter_by(id=sale_id).first_or_404()
-
-    raw_amount = request.form.get("amount_paid") or "0"
-
-    try:
-        # Permite valores con coma o punto
-        raw_amount = raw_amount.replace(",", ".")
-        amount_paid = float(raw_amount)
-    except ValueError:
-        amount_paid = 0.0
-
-    total = float(sale.total or 0.0)
-
-    # Actualizamos montos
-    sale.amount_paid = amount_paid
-    sale.pending_amount = max(total - amount_paid, 0.0)
-
-    # Si ya no hay saldo pendiente (o es muy pequeño), marcamos como Pagado
-    if sale.pending_amount <= 0.01:
-        sale.status = "Pagado"
-        sale.pending_amount = 0.0
-    else:
-        sale.status = "Pendiente"
-
-    db.session.commit()
-    return redirect(url_for("ventas", success="Monto pagado actualizado correctamente."))
-
-
 @app.route("/ventas/export")
 @login_required
 def ventas_export():
@@ -700,88 +743,79 @@ def ventas_export():
     date_to = request.args.get("date_to") or ""
 
     query = query_for(Sale)
+    query = apply_sales_filters(query, filter_name, filter_status, date_from, date_to)
+    sales = query.order_by(Sale.date.asc(), Sale.id.asc()).all()
 
-    if filter_name:
-        like_pattern = f"%{filter_name}%"
-        query = query.filter(Sale.name.ilike(like_pattern))
-
-    if filter_status:
-        query = query.filter_by(status=filter_status)
-
-    d_from = parse_date(date_from)
-    d_to = parse_date(date_to)
-
-    if d_from:
-        query = query.filter(Sale.date >= d_from)
-    if d_to:
-        query = query.filter(Sale.date <= d_to)
-
-    sales = query.all()
-
-    # Exportar como CSV simple
-    output = io.StringIO()
-    output.write(
-        "Fecha,Cliente,Producto,Cantidad,Precio unidad,Total,Ganancia,Estado,Pagado,Pendiente,Tipo pago,Comentario\n"
-    )
+    rows = []
     for s in sales:
-        output.write(
-            f"{s.date},{s.name},{s.product},{s.quantity},"
-            f"{s.price_per_unit},{s.total},{s.profit},{s.status},"
-            f"{s.amount_paid},{s.pending_amount},{s.payment_type},{s.notes or ''}\n"
-        )
+        rows.append({
+            "Fecha": s.date.isoformat() if s.date else "",
+            "Nombre / Cliente": s.name,
+            "Producto": s.product,
+            "Estado": s.status,
+            "Tipo de pago": s.payment_type,
+            "Costo por unidad": s.cost_per_unit,
+            "Precio por unidad": s.price_per_unit,
+            "Cantidad": s.quantity,
+            "Total": s.total,
+            "Pagado": s.amount_paid,
+            "Pendiente": s.pending_amount,
+            "Fecha vencimiento": s.due_date.isoformat() if s.due_date else "",
+            "Ganancia": s.profit,
+            "Comentario": s.notes or "",
+        })
 
-    mem = io.BytesIO()
-    mem.write(output.getvalue().encode("utf-8"))
-    mem.seek(0)
-    filename = f"ventas_export_{datetime.date.today().isoformat()}.csv"
+    df = pd.DataFrame(rows)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Ventas")
+    output.seek(0)
+
     return send_file(
-        mem,
+        output,
         as_attachment=True,
-        download_name=filename,
-        mimetype="text/csv",
+        download_name="ventas_filtradas.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 
 # ---------------------------------------------------------
-# RUTAS DE FLUJO (INGRESOS / GASTOS)
+# CONTROL DE FLUJO (GASTOS / REINVERSIÓN / AHORRO)
 # ---------------------------------------------------------
 
 @app.route("/flujo", methods=["GET", "POST"])
 @login_required
 def flujo():
     error = None
-    success = request.args.get("success")
+    success = None
+    user = current_user()
 
     if request.method == "POST":
         try:
             date_str = request.form.get("date")
             date_val = parse_date(date_str) or datetime.date.today()
-
             description = (request.form.get("description") or "").strip()
-            category = (request.form.get("category") or "").strip()
+            category = request.form.get("category") or "Gasto"
             amount = float(request.form.get("amount") or 0)
 
             if not description:
                 raise ValueError("La descripción es obligatoria.")
-            if not category:
-                raise ValueError("La categoría es obligatoria.")
-            if amount == 0:
-                raise ValueError("El monto no puede ser cero.")
+            if amount <= 0:
+                raise ValueError("El monto debe ser mayor que cero.")
 
-            expense = Expense(
-                user_id=current_user().id,
+            e = Expense(
+                user_id=user.id,
                 date=date_val,
                 description=description,
                 category=category,
                 amount=amount,
             )
-            db.session.add(expense)
+            db.session.add(e)
             db.session.commit()
             success = "Movimiento registrado correctamente."
         except Exception as e:
-            error = f"Error al guardar el movimiento: {e}"
+            error = f"Error al registrar movimiento: {e}"
 
-    # Filtros
     date_from = request.args.get("date_from") or ""
     date_to = request.args.get("date_to") or ""
     category_filter = request.args.get("category_filter") or ""
@@ -802,197 +836,217 @@ def flujo():
     if category_filter:
         exp_query = exp_query.filter(Expense.category == category_filter)
 
-    expenses = exp_query.all()
+    expenses = exp_query.order_by(Expense.date.desc(), Expense.id.desc()).all()
     sales = sales_query.all()
 
-    total_expenses = sum(e.amount or 0 for e in expenses)
-    total_sales = sum(s.total or 0 for s in sales)
-    total_profit = sum(s.profit or 0 for s in sales)
-    balance = total_profit - total_expenses
+    total_ingresos = sum(float(s.total or 0) for s in sales)
+    total_ganancia = sum(float(s.profit or 0) for s in sales)
 
-    # Agrupación por categoría
-    category_totals = defaultdict(float)
-    for e in expenses:
-        category_totals[e.category] += e.amount or 0
+    total_gastos = sum(float(e.amount or 0) for e in expenses if e.category == "Gasto")
+    total_reinv = sum(float(e.amount or 0) for e in expenses if e.category == "Reinversión")
 
-    category_labels = list(category_totals.keys())
-    category_values = [round(category_totals[c], 2) for c in category_labels]
+    total_egresos = total_gastos + total_reinv
+    neto = total_ganancia - total_egresos
+
+    ahorro_objetivo = total_ganancia * 0.10
+    ahorro_real = max(neto, 0.0)
+    ahorro_faltante = max(ahorro_objetivo - ahorro_real, 0.0)
+    meta_cumplida = (total_ganancia > 0) and (ahorro_real >= ahorro_objetivo)
 
     return render_template(
         "flujo.html",
         error=error,
         success=success,
         expenses=expenses,
-        total_expenses=total_expenses,
-        total_sales=total_sales,
-        total_profit=total_profit,
-        balance=balance,
         date_from=date_from,
         date_to=date_to,
         category_filter=category_filter,
-        category_labels=category_labels,
-        category_values=category_values,
+        total_ingresos=total_ingresos,
+        total_ganancia=total_ganancia,
+        total_gastos=total_gastos,
+        total_reinv=total_reinv,
+        total_egresos=total_egresos,
+        neto=neto,
+        ahorro_objetivo=ahorro_objetivo,
+        ahorro_real=ahorro_real,
+        ahorro_faltante=ahorro_faltante,
+        meta_cumplida=meta_cumplida,
     )
 
 
-@app.post("/flujo/<int:expense_id>/delete")
+@app.route("/flujo/export")
 @login_required
-def delete_expense(expense_id):
-    e = Expense.query.get_or_404(expense_id)
-    db.session.delete(e)
-    db.session.commit()
-    return redirect(url_for("flujo", success="Movimiento eliminado correctamente."))
+def flujo_export():
+    date_from = request.args.get("date_from") or ""
+    date_to = request.args.get("date_to") or ""
+    category_filter = request.args.get("category_filter") or ""
+
+    exp_query = query_for(Expense)
+
+    d_from = parse_date(date_from)
+    d_to = parse_date(date_to)
+
+    if d_from:
+        exp_query = exp_query.filter(Expense.date >= d_from)
+    if d_to:
+        exp_query = exp_query.filter(Expense.date <= d_to)
+    if category_filter:
+        exp_query = exp_query.filter(Expense.category == category_filter)
+
+    expenses = exp_query.order_by(Expense.date.asc(), Expense.id.asc()).all()
+
+    rows = []
+    for e in expenses:
+        rows.append({
+            "Fecha": e.date.isoformat() if e.date else "",
+            "Descripción": e.description,
+            "Tipo": e.category,
+            "Monto": e.amount,
+        })
+
+    df = pd.DataFrame(rows)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Flujo")
+    output.seek(0)
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="flujo_filtrado.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 # ---------------------------------------------------------
-# CALCULADORA DE PRECIOS (MÁRGENES, COSTOS, ETC.)
+# DASHBOARD
 # ---------------------------------------------------------
 
-@app.route("/calculadora", methods=["GET", "POST"])
+@app.route("/dashboard")
 @login_required
-def calculadora():
-    error = None
-    result = None
+def dashboard():
+    # Filtros de fecha + presets rápidos
+    date_from = request.args.get("date_from") or ""
+    date_to = request.args.get("date_to") or ""
+    preset = request.args.get("preset") or ""
 
-    if request.method == "POST":
-        try:
-            # Modo de cálculo: "price_from_cost" o "cost_from_price"
-            mode = request.form.get("mode") or "price_from_cost"
+    sales_query = query_for(Sale)
 
-            cost = float(request.form.get("cost") or 0)
-            margin = float(request.form.get("margin") or 0)
-            price = float(request.form.get("price") or 0)
-            quantity = int(request.form.get("quantity") or 1)
-            product_name_input = (request.form.get("product_name") or "").strip()
-            save_to_catalog = bool(request.form.get("save_to_catalog"))
+    d_from = None
+    d_to = None
 
-            if mode == "price_from_cost":
-                if cost <= 0:
-                    raise ValueError("El costo debe ser mayor que cero.")
-                if margin < MIN_MARGIN_PERCENT:
-                    raise ValueError(f"El margen debe ser al menos {MIN_MARGIN_PERCENT:.2f} %.")
-                if quantity <= 0:
-                    raise ValueError("La cantidad debe ser mayor que cero.")
+    if preset:
+        today = datetime.date.today()
 
-                price_result = cost * (1 + margin / 100.0)
-                profit_unit = price_result - cost
-                profit_total = profit_unit * quantity
-                margin_used = (profit_unit / cost * 100.0) if cost > 0 else 0.0
+        if preset == "week":            # últimos 7 días
+            d_to = today
+            d_from = today - datetime.timedelta(days=7)
+        elif preset == "4weeks":        # últimas 4 semanas (28 días)
+            d_to = today
+            d_from = today - datetime.timedelta(days=28)
+        elif preset == "month":         # este mes
+            d_to = today
+            d_from = today.replace(day=1)
+        elif preset == "year":          # este año
+            d_to = today
+            d_from = today.replace(month=1, day=1)
 
-                if save_to_catalog:
-                    if not product_name_input:
-                        raise ValueError("Para guardar en el catálogo debes indicar un nombre de producto.")
-                    existing = query_for(Product).filter_by(
-                        name=product_name_input
-                    ).first()
-                    if existing:
-                        existing.cost = cost
-                        existing.price = price_result
-                    else:
-                        new_product = Product(
-                            name=product_name_input,
-                            cost=cost,
-                            price=price_result,
-                        )
-                        db.session.add(new_product)
-                    db.session.commit()
+        date_from = d_from.isoformat() if d_from else ""
+        date_to = d_to.isoformat() if d_to else ""
+    else:
+        d_from = parse_date(date_from)
+        d_to = parse_date(date_to)
 
-                result = {
-                    "mode": mode,
-                    "cost": cost,
-                    "margin": margin_used,
-                    "price": price_result,
-                    "quantity": quantity,
-                    "profit_unit": profit_unit,
-                    "profit_total": profit_total,
-                }
+    if d_from:
+        sales_query = sales_query.filter(Sale.date >= d_from)
+    if d_to:
+        sales_query = sales_query.filter(Sale.date <= d_to)
 
-            else:
-                # cost_from_price
-                if price <= 0:
-                    raise ValueError("El precio debe ser mayor que cero.")
-                if margin < MIN_MARGIN_PERCENT:
-                    raise ValueError(f"El margen debe ser al menos {MIN_MARGIN_PERCENT:.2f} %.")
-                if quantity <= 0:
-                    raise ValueError("La cantidad debe ser mayor que cero.")
+    sales = sales_query.order_by(Sale.date).all()
 
-                cost_result = price / (1 + margin / 100.0)
-                profit_unit = price - cost_result
-                profit_total = profit_unit * quantity
-                margin_used = (profit_unit / cost_result * 100.0) if cost_result > 0 else 0.0
+    # Top productos por ganancia acumulada
+    profit_by_product = defaultdict(float)
+    for s in sales:
+        profit_by_product[s.product] += float(s.profit or 0)
 
-                if save_to_catalog:
-                    if not product_name_input:
-                        raise ValueError("Para guardar en el catálogo debes indicar un nombre de producto.")
-                    existing = query_for(Product).filter_by(
-                        name=product_name_input
-                    ).first()
-                    if existing:
-                        existing.cost = cost_result
-                        existing.price = price
-                    else:
-                        new_product = Product(
-                            name=product_name_input,
-                            cost=cost_result,
-                            price=price,
-                        )
-                        db.session.add(new_product)
-                    db.session.commit()
+    items = sorted(profit_by_product.items(), key=lambda x: x[1], reverse=True)
+    top_items = items[:5]
+    top_labels = [name for name, _ in top_items]
+    top_values = [round(value, 2) for _, value in top_items]
 
-                result = {
-                    "mode": mode,
-                    "cost": cost_result,
-                    "margin": margin_used,
-                    "price": price,
-                    "quantity": quantity,
-                    "profit_unit": profit_unit,
-                    "profit_total": profit_total,
-                }
+    # Ganancias por semana (ISO week)
+    profit_by_week = defaultdict(float)
+    for s in sales:
+        if not s.date:
+            continue
+        d = s.date
+        if isinstance(d, datetime.datetime):
+            d = d.date()
+        y, w, _ = d.isocalendar()
+        key = f"{y}-W{w:02d}"
+        profit_by_week[key] += float(s.profit or 0)
 
-        except Exception as e:
-            error = str(e)
+    weeks_sorted = sorted(profit_by_week.items(), key=lambda x: x[0])
+    week_labels = [k for k, _ in weeks_sorted]
+    week_values = [round(v, 2) for _, v in weeks_sorted]
 
-    products = query_for(Product).order_by(Product.name).all()
+    # Totales de dashboard
+    total_ganancia = sum(float(s.profit or 0) for s in sales)
+    total_monto_period = sum(float(s.total or 0) for s in sales)
+    num_ventas = len(sales)
+    avg_ticket = total_monto_period / num_ventas if num_ventas > 0 else 0.0
+
+    # Ganancia diaria promedio
+    if d_from and d_to and d_to >= d_from:
+        days = (d_to - d_from).days + 1
+    else:
+        days = 0
+    avg_daily_profit = total_ganancia / days if days > 0 else 0.0
+
+    # Pagos vencidos / próximos sobre las ventas filtradas
+    today = datetime.date.today()
+    overdue_sales = [s for s in sales if s.pending_amount and s.pending_amount > 0 and s.due_date and s.due_date < today]
+    upcoming_sales = [s for s in sales if s.pending_amount and s.pending_amount > 0 and s.due_date and s.due_date >= today]
+
+    overdue_total = sum(float(s.pending_amount or 0) for s in overdue_sales)
+    overdue_count = len(overdue_sales)
+
+    upcoming_total = sum(float(s.pending_amount or 0) for s in upcoming_sales)
+    upcoming_count = len(upcoming_sales)
+
+    # Alertas simples
+    alerts = []
+    if overdue_total > 0:
+        alerts.append({
+            "level": "danger",
+            "title": "Pagos vencidos",
+            "message": f"Tienes ₡{format_num_filter(overdue_total)} pendientes de cobro en {overdue_count} venta(s).",
+        })
+    if upcoming_total > 0 and upcoming_count > 0:
+        alerts.append({
+            "level": "warning",
+            "title": "Pagos próximos",
+            "message": f"Hay ₡{format_num_filter(upcoming_total)} por cobrar en {upcoming_count} venta(s) próximas.",
+        })
+
     return render_template(
-        "calculadora.html",
-        error=error,
-        result=result,
-        products=products,
-        min_margin_percent=MIN_MARGIN_PERCENT,
+        "dashboard.html",
+        top_labels=top_labels,
+        top_values=top_values,
+        week_labels=week_labels,
+        week_values=week_values,
+        total_ganancia=total_ganancia,
+        total_monto_period=total_monto_period,
+        avg_ticket=avg_ticket,
+        avg_daily_profit=avg_daily_profit,
+        overdue_total=overdue_total,
+        overdue_count=overdue_count,
+        upcoming_total=upcoming_total,
+        upcoming_count=upcoming_count,
+        alerts=alerts,
+        date_from=date_from,
+        date_to=date_to,
     )
-
-
-# ---------------------------------------------------------
-# API AUXILIAR PARA OBTENER DATOS DE UN PRODUCTO
-# ---------------------------------------------------------
-
-@app.route("/api/product/<int:product_id>")
-@login_required
-def api_product(product_id):
-    product = Product.query.get_or_404(product_id)
-    return jsonify(
-        {
-            "id": product.id,
-            "name": product.name,
-            "description": product.description,
-            "cost": product.cost,
-            "price": product.price,
-        }
-    )
-
-
-# ---------------------------------------------------------
-# ERROR HANDLERS SIMPLES
-# ---------------------------------------------------------
-
-@app.errorhandler(404)
-def not_found(e):
-    return render_template("404.html"), 404
-
-
-@app.errorhandler(500)
-def server_error(e):
-    return render_template("500.html", error=str(e)), 500
 
 
 # ---------------------------------------------------------
