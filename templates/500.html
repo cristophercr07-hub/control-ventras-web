@@ -1,20 +1,45 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>{% block title %}Control de Ventas{% endblock %}</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body class="bg-dark text-light">
-<nav class="navbar navbar-dark bg-dark border-bottom mb-4">
-    <div class="container-fluid">
-        <span class="navbar-brand">Control de Ventas</span>
+{% extends "base.html" %}
+{% block title %}Error interno (500){% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-8 col-lg-6">
+        <div class="card-matrix text-center">
+            <div class="card-header-matrix">
+                <h3 class="mb-0">Error interno del servidor</h3>
+            </div>
+            <div class="card-body-matrix">
+                <p class="lead mb-3">
+                    Ha ocurrido un error inesperado al procesar tu solicitud.
+                </p>
+
+                {% if error %}
+                    <div class="text-start">
+                        <label class="form-label text-secondary-custom small mb-1">
+                            Detalles técnicos (solo para depuración):
+                        </label>
+                        <pre class="small bg-dark p-3 rounded-3 overflow-auto" style="max-height: 240px;">
+{{ error }}
+                        </pre>
+                    </div>
+                {% endif %}
+
+                <p class="text-secondary-custom mt-3 mb-4">
+                    Puedes intentar de nuevo o regresar al panel principal.
+                </p>
+
+                <div class="d-flex justify-content-center gap-2 flex-wrap">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary-neon">
+                        <i class="bi bi-house-door me-1"></i>
+                        Ir al dashboard
+                    </a>
+                    <a href="{{ url_for('login') }}" class="btn btn-outline-light">
+                        <i class="bi bi-box-arrow-in-right me-1"></i>
+                        Ir al login
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
-</nav>
-<div class="container">
-    {% block content %}{% endblock %}
 </div>
-{% block extra_scripts %}{% endblock %}
-</body>
-</html>
+{% endblock %}
