@@ -195,6 +195,28 @@ def init_admin():
     return "Usuario admin creado: admin / admin"
 
 
+@app.route("/reset_admin")
+def reset_admin():
+    """
+    Fuerza la existencia de un usuario admin con contraseña admin/admin.
+    Usar solo para inicialización; luego se puede eliminar o proteger.
+    """
+    admin = User.query.filter_by(username="admin").first()
+    if not admin:
+        admin = User(
+            username="admin",
+            is_admin=True,
+            password_hash=generate_password_hash("admin"),
+        )
+        db.session.add(admin)
+    else:
+        admin.is_admin = True
+        admin.password_hash = generate_password_hash("admin")
+
+    db.session.commit()
+    return "Usuario admin reseteado: admin / admin"
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
@@ -350,7 +372,6 @@ def delete_user(user_id):
 def clientes():
     error = None
     success = request.args.get("success")
-    user = current_user()
 
     if request.method == "POST":
         try:
@@ -813,7 +834,6 @@ def delete_expense(expense_id):
 def calculadora():
     error = None
     result = None
-    user = current_user()
 
     if request.method == "POST":
         try:
