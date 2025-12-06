@@ -39,7 +39,6 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-
 # Margen mínimo de utilidad para la calculadora
 MIN_MARGIN_PERCENT = 0.0
 
@@ -125,11 +124,15 @@ class Expense(db.Model):
 
 
 # ---------------------------------------------------------
-# FILTRO PARA FORMATEAR NÚMEROS
+# FILTROS JINJA
 # ---------------------------------------------------------
 
 @app.template_filter("format_num")
 def format_num(value):
+    """
+    Formatea números con separador de miles y 2 decimales en formato latino.
+    Ejemplo: 12345.6 -> '12.345,60'
+    """
     try:
         value = float(value or 0)
     except (TypeError, ValueError):
@@ -138,6 +141,18 @@ def format_num(value):
     # 12,345.67 -> 12.345,67
     s = s.replace(",", "X").replace(".", ",").replace("X", ".")
     return s
+
+
+@app.template_filter("zip")
+def zip_filter(a, b):
+    """
+    Permite usar en templates:
+    {% for x, y in lista1|zip(lista2) %}
+    """
+    try:
+        return zip(a, b)
+    except TypeError:
+        return []
 
 
 # ---------------------------------------------------------
@@ -314,6 +329,10 @@ def dashboard():
         .all()
     )
 
+    # Para la parte semanal (si tu template la usa con week_labels, week_values)
+    week_labels = []
+    week_values = []
+
     return render_template(
         "dashboard.html",
         user=user,
@@ -326,6 +345,8 @@ def dashboard():
         chart_profit=chart_profit,
         chart_expenses=chart_expenses,
         recent_sales=recent_sales,
+        week_labels=week_labels,
+        week_values=week_values,
     )
 
 
@@ -578,7 +599,7 @@ def ventas():
             total = price_per_unit * quantity
             profit = (price_per_unit - cost_per_unit) * quantity
 
-            # AJUSTE NUEVO:
+            # NUEVA LÓGICA:
             # - Si la venta se marca como Pagado y no se indicó monto, asumimos que se pagó todo.
             # - Si es Pendiente, se calcula pendiente como total - amount_paid.
             if status == "Pagado":
