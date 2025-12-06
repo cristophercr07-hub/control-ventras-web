@@ -122,6 +122,11 @@ class Expense(db.Model):
     user = db.relationship("User", backref=db.backref("expenses", lazy=True))
 
 
+# Crear todas las tablas si no existen (después de definir los modelos)
+with app.app_context():
+    db.create_all()
+
+
 # ---------------------------------------------------------
 # FUNCIONES AUXILIARES Y DECORADORES
 # ---------------------------------------------------------
