@@ -1,4 +1,4 @@
-import os
+\import os
 import io
 import datetime
 from collections import defaultdict
@@ -125,6 +125,26 @@ class Expense(db.Model):
 # Crear todas las tablas si no existen (después de definir los modelos)
 with app.app_context():
     db.create_all()
+
+
+# ---------------------------------------------------------
+# FILTROS JINJA PERSONALIZADOS
+# ---------------------------------------------------------
+
+@app.template_filter("format_num")
+def format_num(value):
+    """
+    Formatea números con separador de miles y 2 decimales (formato latino).
+    Ejemplo: 12345.6 -> '12.345,60'
+    """
+    try:
+        value = float(value or 0)
+    except (TypeError, ValueError):
+        return "0,00"
+    # 12,345.67 -> 12.345,67
+    s = f"{value:,.2f}"
+    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
+    return s
 
 
 # ---------------------------------------------------------
@@ -731,7 +751,6 @@ def ventas_export():
 def flujo():
     error = None
     success = request.args.get("success")
-    user = current_user()
 
     if request.method == "POST":
         try:
@@ -750,7 +769,7 @@ def flujo():
                 raise ValueError("El monto no puede ser cero.")
 
             expense = Expense(
-                user_id=user.id,
+                user_id=current_user().id,
                 date=date_val,
                 description=description,
                 category=category,
