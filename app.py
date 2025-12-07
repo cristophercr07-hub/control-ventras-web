@@ -859,6 +859,66 @@ def flujo():
     )
 
 
+@app.route("/flujo/export")
+@login_required
+def flujo_export():
+    """
+    Exporta a CSV el flujo de caja filtrado (ventas y gastos).
+    Coincide con los filtros que usa la vista /flujo.
+    """
+    user = current_user()
+
+    date_from = request.args.get("date_from") or ""
+    date_to = request.args.get("date_to") or ""
+    category_filter = request.args.get("category_filter") or ""
+
+    exp_query = query_for(Expense).filter(Expense.user_id == user.id)
+    sales_query = query_for(Sale).filter(Sale.user_id == user.id)
+
+    d_from = parse_date(date_from)
+    d_to = parse_date(date_to)
+
+    if d_from:
+        exp_query = exp_query.filter(Expense.date >= d_from)
+        sales_query = sales_query.filter(Sale.date >= d_from)
+    if d_to:
+        exp_query = exp_query.filter(Expense.date <= d_to)
+        sales_query = sales_query.filter(Sale.date <= d_to)
+
+    if category_filter:
+        exp_query = exp_query.filter(Expense.category == category_filter)
+
+    expenses = exp_query.order_by(Expense.date.asc()).all()
+    sales = sales_query.order_by(Sale.date.asc()).all()
+
+    output = io.StringIO()
+    output.write("Tipo,Fecha,Descripcion,Categoria,Monto\n")
+
+    # Ventas como ingresos (monto positivo)
+    for s in sales:
+        desc = f"Venta {s.product} a {s.name}"
+        output.write(
+            f"Venta,{s.date},{desc},Ingresos,{s.total}\n"
+        )
+
+    # Gastos como montos negativos
+    for e in expenses:
+        output.write(
+            f"Gasto,{e.date},{e.description},{e.category},-{e.amount}\n"
+        )
+
+    mem = io.BytesIO()
+    mem.write(output.getvalue().encode("utf-8"))
+    mem.seek(0)
+    filename = f"flujo_export_{datetime.date.today().isoformat()}.csv"
+    return send_file(
+        mem,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="text/csv",
+    )
+
+
 @app.post("/flujo/<int:expense_id>/delete")
 @login_required
 def delete_expense(expense_id):
