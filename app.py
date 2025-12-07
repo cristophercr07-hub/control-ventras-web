@@ -529,6 +529,7 @@ def productos():
         success=success,
         products=products,
         filter_name=filter_name,
+        price_result=0.0,  
     )
 
 
@@ -1091,3 +1092,4 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     app.run(debug=True)
+
