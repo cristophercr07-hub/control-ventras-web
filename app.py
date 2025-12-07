@@ -189,6 +189,15 @@ def current_user():
     return User.query.get(uid)
 
 
+@app.context_processor
+def inject_user():
+    """
+    Inyecta 'user' en todos los templates, por si se requiere.
+    La navbar usa session, pero esto permite usar {{ user }} en otros templates.
+    """
+    return {"user": current_user()}
+
+
 # ---------------------------------------------------------
 # AUTENTICACIÓN
 # ---------------------------------------------------------
@@ -243,7 +252,11 @@ def login():
         if not user or not user.check_password(password):
             error = "Usuario o contraseña inválidos."
         else:
+            # Guardamos todo lo que necesita la navbar
             session["user_id"] = user.id
+            session["user"] = user.username
+            session["is_admin"] = bool(user.is_admin)
+
             next_url = request.args.get("next") or url_for("dashboard")
             return redirect(next_url)
 
@@ -529,7 +542,8 @@ def productos():
         success=success,
         products=products,
         filter_name=filter_name,
-        price_result=0.0,  
+        # Para evitar UndefinedError en productos.html
+        price_result=0.0,
     )
 
 
@@ -600,9 +614,7 @@ def ventas():
             total = price_per_unit * quantity
             profit = (price_per_unit - cost_per_unit) * quantity
 
-            # NUEVA LÓGICA:
-            # - Si la venta se marca como Pagado y no se indicó monto, asumimos que se pagó todo.
-            # - Si es Pendiente, se calcula pendiente como total - amount_paid.
+            # Si la venta se marca como Pagado y no se indicó monto, asumimos que se pagó todo.
             if status == "Pagado":
                 if amount_paid <= 0:
                     amount_paid = total
@@ -698,7 +710,6 @@ def delete_sale(sale_id):
 @login_required
 def update_sale_amount_paid(sale_id):
     """
-    NUEVA RUTA:
     Actualiza el monto pagado de una venta desde el listado y ajusta estado/pending_amount.
     """
     user = current_user()
@@ -1092,4 +1103,3 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     app.run(debug=True)
-
