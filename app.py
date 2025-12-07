@@ -155,6 +155,14 @@ def zip_filter(a, b):
         return []
 
 
+def format_num_filter(value):
+    """
+    Helper para formatear números desde Python usando la misma lógica
+    que el filtro Jinja 'format_num'.
+    """
+    return format_num(value)
+
+
 # ---------------------------------------------------------
 # UTILIDADES
 # ---------------------------------------------------------
@@ -192,8 +200,8 @@ def current_user():
 @app.context_processor
 def inject_user():
     """
-    Inyecta 'user' en todos los templates, por si se requiere.
-    La navbar usa session, pero esto permite usar {{ user }} en otros templates.
+    Inyecta 'user' en todos los templates por conveniencia.
+    La navbar usa principalmente session, pero esto permite usar {{ user }}.
     """
     return {"user": current_user()}
 
@@ -252,7 +260,7 @@ def login():
         if not user or not user.check_password(password):
             error = "Usuario o contraseña inválidos."
         else:
-            # Guardamos todo lo que necesita la navbar
+            # Guardamos en sesión lo que necesita la navbar y permisos
             session["user_id"] = user.id
             session["user"] = user.username
             session["is_admin"] = bool(user.is_admin)
@@ -298,42 +306,177 @@ def get_default_date_range():
 
 
 @app.route("/")
+def index():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/dashboard")
 @login_required
 def dashboard():
     user = current_user()
-    today = datetime.date.today()
-    first_day, last_day = get_default_date_range()
 
-    query = query_for(Sale).filter(Sale.user_id == user.id)
-    query = query.filter(Sale.date >= first_day, Sale.date <= last_day)
-    sales = query.order_by(Sale.date.asc()).all()
+    # Filtros de fecha + presets rápidos
+    date_from = request.args.get("date_from") or ""
+    date_to = request.args.get("date_to") or ""
+    preset = request.args.get("preset") or ""
 
-    expenses_q = query_for(Expense).filter(Expense.user_id == user.id)
-    expenses_q = expenses_q.filter(Expense.date >= first_day, Expense.date <= last_day)
-    expenses = expenses_q.order_by(Expense.date.asc()).all()
+    sales_query = query_for(Sale).filter(Sale.user_id == user.id)
+    exp_query = query_for(Expense).filter(Expense.user_id == user.id)
 
+    d_from = None
+    d_to = None
+
+    if preset:
+        today = datetime.date.today()
+
+        if preset == "week":            # últimos 7 días
+            d_to = today
+            d_from = today - datetime.timedelta(days=7)
+        elif preset == "4weeks":        # últimas 4 semanas (28 días)
+            d_to = today
+            d_from = today - datetime.timedelta(days=28)
+        elif preset == "month":         # este mes
+            d_to = today
+            d_from = today.replace(day=1)
+        elif preset == "year":          # este año
+            d_to = today
+            d_from = today.replace(month=1, day=1)
+
+        date_from = d_from.isoformat() if d_from else ""
+        date_to = d_to.isoformat() if d_to else ""
+    else:
+        d_from = parse_date(date_from)
+        d_to = parse_date(date_to)
+
+    # Aplicar filtros de fecha a ventas y gastos
+    if d_from:
+        sales_query = sales_query.filter(Sale.date >= d_from)
+        exp_query = exp_query.filter(Expense.date >= d_from)
+    if d_to:
+        sales_query = sales_query.filter(Sale.date <= d_to)
+        exp_query = exp_query.filter(Expense.date <= d_to)
+
+    sales = sales_query.order_by(Sale.date.asc(), Sale.id.asc()).all()
+    expenses = exp_query.order_by(Expense.date.asc(), Expense.id.asc()).all()
+
+    # -------------------------------------------------
+    # Totales "clásicos" del dashboard
+    # -------------------------------------------------
     total_sales = sum(float(s.total or 0) for s in sales)
     total_profit = sum(float(s.profit or 0) for s in sales)
     total_expenses = sum(float(e.amount or 0) for e in expenses)
     balance = total_profit - total_expenses
 
+    # -------------------------------------------------
+    # Agregados diarios para gráficos de líneas
+    # -------------------------------------------------
     daily_sales = defaultdict(float)
     daily_profit = defaultdict(float)
     daily_expenses = defaultdict(float)
 
     for s in sales:
-        daily_sales[s.date] += float(s.total or 0)
-        daily_profit[s.date] += float(s.profit or 0)
+        d = s.date
+        if isinstance(d, datetime.datetime):
+            d = d.date()
+        daily_sales[d] += float(s.total or 0)
+        daily_profit[d] += float(s.profit or 0)
 
     for e in expenses:
-        daily_expenses[e.date] += float(e.amount or 0)
+        d = e.date
+        if isinstance(d, datetime.datetime):
+            d = d.date()
+        daily_expenses[d] += float(e.amount or 0)
 
-    dates = sorted(set(list(daily_sales.keys()) + list(daily_expenses.keys())))
-    chart_labels = [d.strftime("%d-%m") for d in dates]
-    chart_sales = [round(daily_sales[d], 2) for d in dates]
-    chart_profit = [round(daily_profit[d], 2) for d in dates]
-    chart_expenses = [round(daily_expenses[d], 2) for d in dates]
+    # Unificamos fechas para gráficos
+    all_dates = sorted(set(list(daily_sales.keys()) + list(daily_expenses.keys())))
+    chart_labels = [d.strftime("%d-%m") for d in all_dates]
+    chart_sales = [round(daily_sales[d], 2) for d in all_dates]
+    chart_profit = [round(daily_profit[d], 2) for d in all_dates]
+    chart_expenses = [round(daily_expenses[d], 2) for d in all_dates]
 
+    # -------------------------------------------------
+    # Top productos por ganancia acumulada
+    # -------------------------------------------------
+    profit_by_product = defaultdict(float)
+    for s in sales:
+        profit_by_product[s.product] += float(s.profit or 0)
+
+    items = sorted(profit_by_product.items(), key=lambda x: x[1], reverse=True)
+    top_items = items[:5]
+    top_labels = [name for name, _ in top_items]
+    top_values = [round(value, 2) for _, value in top_items]
+
+    # -------------------------------------------------
+    # Ganancias por semana (ISO week)
+    # -------------------------------------------------
+    profit_by_week = defaultdict(float)
+    for s in sales:
+        if not s.date:
+            continue
+        d = s.date
+        if isinstance(d, datetime.datetime):
+            d = d.date()
+        y, w, _ = d.isocalendar()
+        key = f"{y}-W{w:02d}"
+        profit_by_week[key] += float(s.profit or 0)
+
+    weeks_sorted = sorted(profit_by_week.items(), key=lambda x: x[0])
+    week_labels = [k for k, _ in weeks_sorted]
+    week_values = [round(v, 2) for _, v in weeks_sorted]
+
+    # -------------------------------------------------
+    # KPIs adicionales
+    # -------------------------------------------------
+    total_ganancia = total_profit
+    total_monto_period = total_sales
+    num_ventas = len(sales)
+    avg_ticket = total_monto_period / num_ventas if num_ventas > 0 else 0.0
+
+    if d_from and d_to and d_to >= d_from:
+        days = (d_to - d_from).days + 1
+    else:
+        days = 0
+    avg_daily_profit = total_ganancia / days if days > 0 else 0.0
+
+    # -------------------------------------------------
+    # Pagos vencidos / próximos (solo sobre ventas filtradas)
+    # -------------------------------------------------
+    today = datetime.date.today()
+    overdue_sales = [
+        s for s in sales
+        if (s.pending_amount or 0) > 0 and s.due_date and s.due_date < today
+    ]
+    upcoming_sales = [
+        s for s in sales
+        if (s.pending_amount or 0) > 0 and s.due_date and s.due_date >= today
+    ]
+
+    overdue_total = sum(float(s.pending_amount or 0) for s in overdue_sales)
+    overdue_count = len(overdue_sales)
+
+    upcoming_total = sum(float(s.pending_amount or 0) for s in upcoming_sales)
+    upcoming_count = len(upcoming_sales)
+
+    # -------------------------------------------------
+    # Alertas
+    # -------------------------------------------------
+    alerts = []
+    if overdue_total > 0:
+        alerts.append({
+            "level": "danger",
+            "title": "Pagos vencidos",
+            "message": f"Tienes ₡{format_num_filter(overdue_total)} pendientes de cobro en {overdue_count} venta(s).",
+        })
+    if upcoming_total > 0 and upcoming_count > 0:
+        alerts.append({
+            "level": "warning",
+            "title": "Pagos próximos",
+            "message": f"Hay ₡{format_num_filter(upcoming_total)} por cobrar en {upcoming_count} venta(s) próximas.",
+        })
+
+    # Para tablas de "ventas recientes" si el template las usa
     recent_sales = (
         query_for(Sale)
         .filter(Sale.user_id == user.id)
@@ -342,24 +485,43 @@ def dashboard():
         .all()
     )
 
-    # Para la parte semanal (si tu template la usa con week_labels, week_values)
-    week_labels = []
-    week_values = []
-
     return render_template(
         "dashboard.html",
-        user=user,
+        # Totales clásicos
         total_sales=total_sales,
         total_profit=total_profit,
         total_expenses=total_expenses,
         balance=balance,
+        # Gráficos diarios
         chart_labels=chart_labels,
         chart_sales=chart_sales,
         chart_profit=chart_profit,
         chart_expenses=chart_expenses,
-        recent_sales=recent_sales,
+        # Gráfico semanal
         week_labels=week_labels,
         week_values=week_values,
+        # Top productos
+        top_labels=top_labels,
+        top_values=top_values,
+        # KPIs adicionales
+        total_ganancia=total_ganancia,
+        total_monto_period=total_monto_period,
+        avg_ticket=avg_ticket,
+        avg_daily_profit=avg_daily_profit,
+        # Pagos vencidos / próximos
+        overdue_sales=overdue_sales,
+        upcoming_sales=upcoming_sales,
+        overdue_total=overdue_total,
+        overdue_count=overdue_count,
+        upcoming_total=upcoming_total,
+        upcoming_count=upcoming_count,
+        # Alertas
+        alerts=alerts,
+        # Filtros actuales
+        date_from=date_from,
+        date_to=date_to,
+        # Ventas recientes
+        recent_sales=recent_sales,
     )
 
 
@@ -542,7 +704,7 @@ def productos():
         success=success,
         products=products,
         filter_name=filter_name,
-        # Para evitar UndefinedError en productos.html
+        # Evita UndefinedError en productos.html
         price_result=0.0,
     )
 
@@ -568,7 +730,7 @@ def ventas():
     error = None
     success = request.args.get("success")
 
-    if request.method == "POST":
+    if request.method == "POST"]:
         try:
             date_str = request.form.get("date")
             date_val = parse_date(date_str) or datetime.date.today()
