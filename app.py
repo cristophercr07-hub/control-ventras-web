@@ -730,7 +730,7 @@ def ventas():
     error = None
     success = request.args.get("success")
 
-    if request.method == "POST"]:
+    if request.method == "POST":
         try:
             date_str = request.form.get("date")
             date_val = parse_date(date_str) or datetime.date.today()
@@ -1265,3 +1265,4 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     app.run(debug=True)
+
